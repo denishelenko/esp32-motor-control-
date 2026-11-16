@@ -6,7 +6,7 @@
 // These are placeholders so credentials are not published to Git.
 constexpr char HOME_WIFI_SSID[] = "ENTER_WIFI_NAME";
 constexpr char HOME_WIFI_PASSWORD[] = "ENTER_WIFI_PASSWORD";
-constexpr char HOME_MDNS_HOSTNAME[] = "motor";
+constexpr char HOME_MDNS_HOSTNAME[] = "motor-control";
 #define HOME_WIFI_CONFIGURED 1
 
 // This dedicated sketch is intended for the home router only.

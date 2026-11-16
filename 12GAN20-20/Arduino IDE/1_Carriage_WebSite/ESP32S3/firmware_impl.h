@@ -468,7 +468,7 @@ void setup() {
   httpServer.on("/", [](){ httpServer.send_P(200, "text/html; charset=utf-8", WEB_UI); });
   httpServer.onNotFound([](){ httpServer.sendHeader("Location", "/"); httpServer.send(302, "text/plain", ""); });
   httpServer.begin(); wsServer.begin(); wsServer.onEvent(handleWs);
-  Serial.println("Open http://motor.local or http://192.168.4.1");
+  Serial.println("Open http://motor-control.local or http://192.168.4.1");
 }
 
 void loop() {
