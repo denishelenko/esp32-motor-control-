@@ -41,7 +41,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\export-controller.ps1
 | `single_esp32s3` | ESP32-S3 N16R8, одна каретка та сайт |
 | `dual_esp32s3_controller` | ESP32-S3 N16R8, головна каретка та сайт |
 | `dual_esp32s3_remote` | ESP32-S3 N16R8, віддалена каретка |
-| `dual_home_main_serial` / `dual_home_main_ota` | Головна ESP32-S3 у зовнішній мережі `Motor-Control`, USB / OTA |
+| `dual_home_main_serial` / `dual_home_main_ota` | Головна ESP32-S3 у зовнішній мережі з `home_wifi.local.h`, USB / OTA |
 | `dual_home_remote_serial` / `dual_home_remote_ota` | Друга ESP32-S3 у тій самій мережі, USB / OTA |
 
 Усі активні ESP32-S3 прошивки використовують однакові піни: `2` → AIN1+BIN1 TB6612FNG, `1` → AIN2+BIN2, `42` → PWMA+PWMB (ШІМ), `15` → A1 TXS0108E для сервопривода, `16` → червоний LED, `17` → зелений LED. [Схема підключення](../WIRING_ESP32S3_TB6612FNG.md). Профілі PlatformIO підключають відповідні скетчі з папки `Arduino IDE` або `Home dev internet`, тому окремих копій пінів у `src` немає.
