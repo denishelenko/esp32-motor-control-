@@ -8,7 +8,7 @@
 
 | Роль | Arduino IDE | PlatformIO USB | PlatformIO OTA | Мережева адреса |
 | --- | --- | --- | --- | --- |
-| Головна каретка та сайт | `ESP32S3_Controller_Carriage_1/ESP32S3_Controller_Carriage_1.ino` | `dual_home_main_serial` | `dual_home_main_ota` | `http://motor.local/` |
+| Головна каретка та сайт | `ESP32S3_Controller_Carriage_1/ESP32S3_Controller_Carriage_1.ino` | `dual_home_main_serial` | `dual_home_main_ota` | `http://motor-control.local/` |
 | Друга каретка | `ESP32S3_Carriage_2/ESP32S3_Carriage_2.ino` | `dual_home_remote_serial` | `dual_home_remote_ota` | `motor-carriage-2.local` тільки для OTA |
 
 Перший раз прошийте **кожну** плату через USB. В Arduino IDE виберіть 16 MB flash і **Partition Scheme: Custom**: у кожному скетчі вже є свій `partitions.csv` із двома OTA слотами. PlatformIO використовує таку саму таблицю розділів `default_16MB.csv`. Після цього підключіть комп'ютер до тієї самої мережі й прошивайте відповідним OTA профілем. OTA використовує порт 3232 і пароль `motor8266`. Якщо `.local` не знаходиться, використайте IP із Serial Monitor як `upload_port` у відповідному профілі.

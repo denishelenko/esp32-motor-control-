@@ -495,16 +495,16 @@ void setup() {
     #if HOME_WIFI_CONFIGURED
     HOME_MDNS_HOSTNAME
     #else
-    "motor"
+    "motor-control"
     #endif
   );
   httpServer.on("/", [](){ httpServer.send_P(200, "text/html; charset=utf-8", WEB_UI); });
   httpServer.onNotFound([](){ httpServer.sendHeader("Location", "/"); httpServer.send(302, "text/plain", ""); });
   httpServer.begin(); wsServer.begin(); wsServer.onEvent(handleWs);
   #if HOME_WIFI_ONLY
-  Serial.println("Open http://motor.local or use the IP shown above");
+  Serial.println("Open http://motor-control.local or use the IP shown above");
   #else
-  Serial.println("Open http://motor.local or http://192.168.4.1");
+  Serial.println("Open http://motor-control.local or http://192.168.4.1");
   #endif
 }
 
