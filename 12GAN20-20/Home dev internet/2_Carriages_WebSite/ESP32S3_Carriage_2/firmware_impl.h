@@ -82,8 +82,9 @@ void setup() {
   digitalWrite(MOTOR_IN2_PIN, LOW);
   pinMode(LIGHT_RED_PIN, OUTPUT);
   pinMode(LIGHT_GREEN_PIN, OUTPUT);
-  if (!ledcAttachChannel(MOTOR_IN1_PIN, PWM_FREQUENCY_HZ, 10, 0) ||
-      !ledcAttachChannel(MOTOR_IN2_PIN, PWM_FREQUENCY_HZ, 10, 1) ||
+  pinMode(MOTOR_PWM_PIN, OUTPUT);
+  digitalWrite(MOTOR_PWM_PIN, LOW);
+  if (!ledcAttachChannel(MOTOR_PWM_PIN, PWM_FREQUENCY_HZ, 10, 0) ||
       !ledcAttachChannel(SERVO_SIGNAL_PIN, SERVO_FREQUENCY_HZ, 14, 2)) {
     Serial.println("[CARRIAGE 2] PWM initialization failed; motor disabled");
     return;

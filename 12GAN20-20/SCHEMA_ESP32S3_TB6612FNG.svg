@@ -1,0 +1,195 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2600" height="1850" viewBox="0 0 2600 1850">
+<rect x="0" y="0" width="2600" height="1850" rx="0" fill="#f6f8fa" stroke="none" stroke-width="0"/>
+<rect x="0" y="0" width="2600" height="112" rx="0" fill="#183a55" stroke="none" stroke-width="0"/>
+<text x="75" y="72" font-family="DejaVu Sans, Arial, sans-serif" font-size="47" font-weight="700" text-anchor="start" fill="#ffffff">ESP32-S3 • TB6612FNG • 2 мотори</text>
+<text x="2440" y="70" font-family="DejaVu Sans, Arial, sans-serif" font-size="29" font-weight="600" text-anchor="end" fill="#e1ebf2">СХЕМА ПАЙКИ</text>
+<text x="75" y="157" font-family="DejaVu Sans, Arial, sans-serif" font-size="28" font-weight="600" text-anchor="start" fill="#1b2d40">Живлення 2S → 5 В для ESP/серво та 12 В для моторів. Усі мінуси об’єднані.</text>
+<polyline points="1110,195 1110,180 1535,180 1535,260 1565,260" fill="none" stroke="#c9343a" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1755,260 1790,260 1790,365 270,365 270,515 310,515" fill="none" stroke="#c9343a" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1790,365 1760,365 1760,515 1810,515" fill="none" stroke="#c9343a" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1250,275 1250,315 125,315 125,1710 2450,1710" fill="none" stroke="#263747" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="125,565 310,565" fill="none" stroke="#263747" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1810,565 1770,565 1770,1710" fill="none" stroke="#263747" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="1040" y="195" width="350" height="120" rx="20" fill="#394c62" stroke="#526374" stroke-width="3"/>
+<rect x="1070" y="216" width="146" height="75" rx="16" fill="#617ba0" stroke="none" stroke-width="0"/>
+<rect x="1210" y="216" width="146" height="75" rx="16" fill="#617ba0" stroke="none" stroke-width="0"/>
+<text x="1215" y="249" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="700" text-anchor="middle" fill="#ffffff">2S АКУМУЛЯТОР</text>
+<text x="1215" y="284" font-family="DejaVu Sans, Arial, sans-serif" font-size="21" font-weight="500" text-anchor="middle" fill="#f0f4f8">7,4 В • до 8,4 В</text>
+<circle cx="1110" cy="195" r="8" fill="#c9343a" stroke="#f7f9fa" stroke-width="3"/>
+<circle cx="1250" cy="315" r="8" fill="#263747" stroke="#f7f9fa" stroke-width="3"/>
+<rect x="1565" y="195" width="190" height="130" rx="18" fill="#293541" stroke="#526374" stroke-width="3"/>
+<rect x="1630" y="212" width="60" height="82" rx="12" fill="#e5e9ec" stroke="none" stroke-width="0"/>
+<text x="1660" y="255" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="#24394a">I/O</text>
+<text x="1660" y="310" font-family="DejaVu Sans, Arial, sans-serif" font-size="21" font-weight="700" text-anchor="middle" fill="#ffffff">ВИМИКАЧ +</text>
+<text x="107" y="302" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="#263747">СПІЛЬНИЙ GND</text>
+<rect x="310" y="400" width="490" height="235" rx="16" fill="#159275" stroke="#0d5f51" stroke-width="5"/>
+<rect x="410" y="470" width="130" height="95" rx="8" fill="#526477" stroke="#283c4a" stroke-width="4"/>
+<text x="475" y="528" font-family="DejaVu Sans, Arial, sans-serif" font-size="37" font-weight="700" text-anchor="middle" fill="#e6e7e8">470</text>
+<rect x="565" y="458" width="67" height="125" rx="8" fill="#1e303c" stroke="#526374" stroke-width="3"/>
+<rect x="673" y="475" width="65" height="110" rx="9" fill="#1455a0" stroke="#526374" stroke-width="3"/>
+<text x="555" y="438" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="700" text-anchor="middle" fill="#ffffff">Mini 560 Pro • ПОНИЖУВАЧ 5 В</text>
+<circle cx="310" cy="515" r="10" fill="#c9343a" stroke="#f7f9fa" stroke-width="3"/>
+<text x="333" y="523" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="start" fill="#ffffff">IN+</text>
+<circle cx="310" cy="565" r="10" fill="#263747" stroke="#f7f9fa" stroke-width="3"/>
+<text x="333" y="573" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="start" fill="#ffffff">IN−</text>
+<circle cx="800" cy="510" r="10" fill="#e59322" stroke="#f7f9fa" stroke-width="3"/>
+<text x="777" y="518" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="end" fill="#ffffff">OUT+ 5 В</text>
+<circle cx="800" cy="568" r="10" fill="#263747" stroke="#f7f9fa" stroke-width="3"/>
+<text x="777" y="576" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="end" fill="#ffffff">OUT−</text>
+<rect x="1810" y="400" width="490" height="235" rx="16" fill="#1869a9" stroke="#184c77" stroke-width="5"/>
+<rect x="1940" y="465" width="135" height="125" rx="15" fill="#273e56" stroke="#526374" stroke-width="3"/>
+<text x="2006" y="540" font-family="DejaVu Sans, Arial, sans-serif" font-size="40" font-weight="700" text-anchor="middle" fill="#f3f6f7">470</text>
+<rect x="2145" y="475" width="72" height="98" rx="9" fill="#278ad0" stroke="#526374" stroke-width="3"/>
+<text x="2055" y="438" font-family="DejaVu Sans, Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle" fill="#ffffff">ПІДВИЩУВАЧ • 12 В</text>
+<circle cx="1810" cy="515" r="10" fill="#c9343a" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1833" y="523" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="start" fill="#ffffff">IN+</text>
+<circle cx="1810" cy="565" r="10" fill="#263747" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1833" y="573" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="start" fill="#ffffff">IN−</text>
+<circle cx="2300" cy="510" r="10" fill="#a4487b" stroke="#f7f9fa" stroke-width="3"/>
+<text x="2277" y="518" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="end" fill="#ffffff">OUT+ 12 В</text>
+<circle cx="2300" cy="568" r="10" fill="#263747" stroke="#f7f9fa" stroke-width="3"/>
+<text x="2277" y="576" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="end" fill="#ffffff">OUT−</text>
+<polyline points="800,510 1140,510 1140,1055 1240,1055" fill="none" stroke="#e59322" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1140,1055 1140,1380 1080,1380 1080,1490 1110,1490" fill="none" stroke="#e59322" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="800,568 1020,568 1020,1710" fill="none" stroke="#263747" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="2300,510 2380,510 2380,640 160,640 160,745 230,745" fill="none" stroke="#a4487b" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="2300,568 2345,568 2345,1710" fill="none" stroke="#263747" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="1240" y="680" width="700" height="650" rx="20" fill="#1c2835" stroke="#0a1622" stroke-width="6"/>
+<rect x="1450" y="740" width="290" height="296" rx="22" fill="#8d99a4" stroke="#ced6db" stroke-width="5"/>
+<rect x="1467" y="765" width="256" height="240" rx="14" fill="#c9d1d6" stroke="#4a5964" stroke-width="3"/>
+<text x="1595" y="845" font-family="DejaVu Sans, Arial, sans-serif" font-size="38" font-weight="700" text-anchor="middle" fill="#243442">ESP32-S3</text>
+<text x="1595" y="892" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="600" text-anchor="middle" fill="#344655">N16R8 • IPEX</text>
+<rect x="1500" y="1180" width="180" height="118" rx="13" fill="#d0d5d9" stroke="#6b7780" stroke-width="5"/>
+<text x="1590" y="1250" font-family="DejaVu Sans, Arial, sans-serif" font-size="35" font-weight="700" text-anchor="middle" fill="#3d4b57">USB</text>
+<text x="1590" y="716" font-family="DejaVu Sans, Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle" fill="#ffffff">КАРЕТКА: ГОЛОВНА АБО ДРУГА</text>
+<circle cx="1240" cy="795" r="10" fill="#1877b8" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1263" y="803" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="650" text-anchor="start" fill="#ffffff">42  PWM A+B</text>
+<circle cx="1240" cy="860" r="10" fill="#1d9ab8" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1263" y="868" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="650" text-anchor="start" fill="#ffffff">2  IN1 A+B</text>
+<circle cx="1240" cy="925" r="10" fill="#1d9ab8" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1263" y="933" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="650" text-anchor="start" fill="#ffffff">1  IN2 A+B</text>
+<circle cx="1240" cy="990" r="10" fill="#8057aa" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1263" y="998" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="650" text-anchor="start" fill="#ffffff">3V3</text>
+<circle cx="1240" cy="1055" r="10" fill="#e59322" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1263" y="1063" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="650" text-anchor="start" fill="#ffffff">5V</text>
+<circle cx="1240" cy="1120" r="10" fill="#263747" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1263" y="1128" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="650" text-anchor="start" fill="#ffffff">GND</text>
+<circle cx="1940" cy="800" r="10" fill="#2e9f6a" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1917" y="808" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="end" fill="#ffffff">15  SERVO</text>
+<circle cx="1940" cy="870" r="10" fill="#c9343a" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1917" y="878" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="end" fill="#ffffff">16  LED R</text>
+<circle cx="1940" cy="940" r="10" fill="#2e9f6a" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1917" y="948" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="end" fill="#ffffff">17  LED G</text>
+<circle cx="1940" cy="1010" r="10" fill="#8292a2" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1917" y="1018" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="end" fill="#ffffff">8  SDA • резерв</text>
+<circle cx="1940" cy="1080" r="10" fill="#8292a2" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1917" y="1088" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="end" fill="#ffffff">9  SCL • резерв</text>
+<circle cx="1940" cy="1150" r="10" fill="#8292a2" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1917" y="1158" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="650" text-anchor="end" fill="#ffffff">10/11/12 • I²S резерв</text>
+<rect x="230" y="675" width="750" height="665" rx="18" fill="#d13f42" stroke="#9f282b" stroke-width="6"/>
+<rect x="515" y="780" width="185" height="300" rx="15" fill="#27313c" stroke="#a71e27" stroke-width="5"/>
+<text x="607" y="865" font-family="DejaVu Sans, Arial, sans-serif" font-size="25" font-weight="700" text-anchor="middle" fill="#ffffff">TB6612</text>
+<text x="607" y="915" font-family="DejaVu Sans, Arial, sans-serif" font-size="19" font-weight="600" text-anchor="middle" fill="#dbe4eb">FNG • A+B</text>
+<circle cx="295" cy="715" r="22" fill="#f6f8fa" stroke="#b72d34" stroke-width="7"/>
+<circle cx="295" cy="1300" r="22" fill="#f6f8fa" stroke="#b72d34" stroke-width="7"/>
+<circle cx="920" cy="715" r="22" fill="#f6f8fa" stroke="#b72d34" stroke-width="7"/>
+<circle cx="920" cy="1300" r="22" fill="#f6f8fa" stroke="#b72d34" stroke-width="7"/>
+<text x="605" y="715" font-family="DejaVu Sans, Arial, sans-serif" font-size="29" font-weight="700" text-anchor="middle" fill="#ffffff">ДРАЙВЕР МОТОРІВ</text>
+<circle cx="230" cy="745" r="10" fill="#a4487b" stroke="#f7f9fa" stroke-width="3"/>
+<text x="253" y="753" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="650" text-anchor="start" fill="#ffffff">VM 12 В</text>
+<circle cx="230" cy="815" r="10" fill="#263747" stroke="#f7f9fa" stroke-width="3"/>
+<text x="253" y="823" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="650" text-anchor="start" fill="#ffffff">GND</text>
+<circle cx="230" cy="885" r="10" fill="#cc8e1e" stroke="#f7f9fa" stroke-width="3"/>
+<text x="253" y="893" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="650" text-anchor="start" fill="#ffffff">A1 → мотор 1</text>
+<circle cx="230" cy="955" r="10" fill="#cc8e1e" stroke="#f7f9fa" stroke-width="3"/>
+<text x="253" y="963" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="650" text-anchor="start" fill="#ffffff">A2 → мотор 1</text>
+<circle cx="230" cy="1075" r="10" fill="#2a73ad" stroke="#f7f9fa" stroke-width="3"/>
+<text x="253" y="1083" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="650" text-anchor="start" fill="#ffffff">B1 → мотор 2</text>
+<circle cx="230" cy="1145" r="10" fill="#2a73ad" stroke="#f7f9fa" stroke-width="3"/>
+<text x="253" y="1153" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="650" text-anchor="start" fill="#ffffff">B2 → мотор 2</text>
+<circle cx="980" cy="795" r="10" fill="#1877b8" stroke="#f7f9fa" stroke-width="3"/>
+<text x="957" y="803" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="650" text-anchor="end" fill="#ffffff">PWMA + PWMB</text>
+<circle cx="980" cy="860" r="10" fill="#1d9ab8" stroke="#f7f9fa" stroke-width="3"/>
+<text x="957" y="868" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="650" text-anchor="end" fill="#ffffff">AIN1 + BIN1</text>
+<circle cx="980" cy="925" r="10" fill="#1d9ab8" stroke="#f7f9fa" stroke-width="3"/>
+<text x="957" y="933" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="650" text-anchor="end" fill="#ffffff">AIN2 + BIN2</text>
+<circle cx="980" cy="990" r="10" fill="#8057aa" stroke="#f7f9fa" stroke-width="3"/>
+<text x="957" y="998" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="650" text-anchor="end" fill="#ffffff">VCC + STBY</text>
+<circle cx="980" cy="1120" r="10" fill="#263747" stroke="#f7f9fa" stroke-width="3"/>
+<text x="957" y="1128" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="650" text-anchor="end" fill="#ffffff">GND</text>
+<polyline points="230,815 145,815 145,1710" fill="none" stroke="#263747" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="980,1120 1070,1120 1070,1710" fill="none" stroke="#263747" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1240,1120 1195,1120 1195,1710" fill="none" stroke="#263747" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1240,990 1120,990 980,990" fill="none" stroke="#8057aa" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1240,795 980,795" fill="none" stroke="#1877b8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1240,860 980,860" fill="none" stroke="#1d9ab8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1240,925 980,925" fill="none" stroke="#1d9ab8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1105" y="765" font-family="DejaVu Sans, Arial, sans-serif" font-size="21" font-weight="700" text-anchor="middle" fill="#1877b8">PWM</text>
+<text x="1105" y="837" font-family="DejaVu Sans, Arial, sans-serif" font-size="19" font-weight="700" text-anchor="middle" fill="#1d9ab8">НАПРЯМОК</text>
+<text x="1095" y="979" font-family="DejaVu Sans, Arial, sans-serif" font-size="19" font-weight="700" text-anchor="middle" fill="#8057aa">3,3 В</text>
+<rect x="24" y="829" width="155" height="145" rx="70" fill="#b9c2c9" stroke="#7a8790" stroke-width="5"/>
+<circle cx="65" cy="901" r="36" fill="#eef1f2" stroke="#79858e" stroke-width="5"/>
+<text x="112" y="900" font-family="DejaVu Sans, Arial, sans-serif" font-size="34" font-weight="700" text-anchor="middle" fill="#3e4e5b">M</text>
+<text x="101" y="941" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="#3e4e5b">1</text>
+<rect x="24" y="1024" width="155" height="145" rx="70" fill="#b9c2c9" stroke="#7a8790" stroke-width="5"/>
+<circle cx="65" cy="1096" r="36" fill="#eef1f2" stroke="#79858e" stroke-width="5"/>
+<text x="112" y="1095" font-family="DejaVu Sans, Arial, sans-serif" font-size="34" font-weight="700" text-anchor="middle" fill="#3e4e5b">M</text>
+<text x="101" y="1136" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="#3e4e5b">2</text>
+<polyline points="179,885 230,885" fill="none" stroke="#cc8e1e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="179,955 230,955" fill="none" stroke="#cc8e1e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="179,1075 230,1075" fill="none" stroke="#2a73ad" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="179,1145 230,1145" fill="none" stroke="#2a73ad" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="1110" y="1390" width="485" height="220" rx="15" fill="#25559a" stroke="#173b6c" stroke-width="5"/>
+<rect x="1270" y="1450" width="160" height="92" rx="8" fill="#26303e" stroke="#526374" stroke-width="3"/>
+<text x="1352" y="1433" font-family="DejaVu Sans, Arial, sans-serif" font-size="27" font-weight="700" text-anchor="middle" fill="#ffffff">TXS0108E • РІВНІ</text>
+<circle cx="1110" cy="1490" r="10" fill="#e59322" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1133" y="1498" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="650" text-anchor="start" fill="#ffffff">VB 5 В</text>
+<circle cx="1110" cy="1545" r="10" fill="#263747" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1133" y="1553" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="650" text-anchor="start" fill="#ffffff">GND</text>
+<circle cx="1595" cy="1460" r="10" fill="#8057aa" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1572" y="1468" font-family="DejaVu Sans, Arial, sans-serif" font-size="21" font-weight="650" text-anchor="end" fill="#ffffff">VA + OE 3V3</text>
+<circle cx="1595" cy="1515" r="10" fill="#2e9f6a" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1572" y="1523" font-family="DejaVu Sans, Arial, sans-serif" font-size="21" font-weight="650" text-anchor="end" fill="#ffffff">A1 ← GPIO15</text>
+<circle cx="1595" cy="1570" r="10" fill="#2e9f6a" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1572" y="1578" font-family="DejaVu Sans, Arial, sans-serif" font-size="21" font-weight="650" text-anchor="end" fill="#ffffff">B1 → серво</text>
+<polyline points="1240,990 1240,1350 1660,1350 1660,1460 1595,1460" fill="none" stroke="#8057aa" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1940,800 2010,800 2010,1355 1700,1355 1700,1515 1595,1515" fill="none" stroke="#2e9f6a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1110,1545 1070,1545 1070,1710" fill="none" stroke="#263747" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="650" y="1390" width="280" height="215" rx="28" fill="#28333d" stroke="#526374" stroke-width="3"/>
+<circle cx="790" cy="1488" r="70" fill="#a0abb2" stroke="#596873" stroke-width="5"/>
+<path d="M790 1488 L865 1425" stroke="#e1e5e9" stroke-width="14" stroke-linecap="round"/>
+<text x="790" y="1580" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="700" text-anchor="middle" fill="#ffffff">СЕРВОПРИВІД</text>
+<circle cx="650" cy="1445" r="10" fill="#e59322" stroke="#f7f9fa" stroke-width="3"/>
+<text x="673" y="1453" font-family="DejaVu Sans, Arial, sans-serif" font-size="21" font-weight="650" text-anchor="start" fill="#ffffff">+5 В</text>
+<circle cx="650" cy="1500" r="10" fill="#263747" stroke="#f7f9fa" stroke-width="3"/>
+<text x="673" y="1508" font-family="DejaVu Sans, Arial, sans-serif" font-size="21" font-weight="650" text-anchor="start" fill="#ffffff">GND</text>
+<circle cx="650" cy="1550" r="10" fill="#2e9f6a" stroke="#f7f9fa" stroke-width="3"/>
+<text x="673" y="1558" font-family="DejaVu Sans, Arial, sans-serif" font-size="21" font-weight="650" text-anchor="start" fill="#ffffff">сигнал</text>
+<polyline points="1080,1380 1000,1380 1000,1360 625,1360 625,1445 650,1445" fill="none" stroke="#e59322" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="650,1500 610,1500 610,1710" fill="none" stroke="#263747" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1595,1570 1620,1570 1620,1640 610,1640 610,1550 650,1550" fill="none" stroke="#2e9f6a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="1870" y="1390" width="380" height="220" rx="18" fill="#33433e" stroke="#526374" stroke-width="3"/>
+<text x="2060" y="1435" font-family="DejaVu Sans, Arial, sans-serif" font-size="27" font-weight="700" text-anchor="middle" fill="#ffffff">RGB LED</text>
+<circle cx="2045" cy="1500" r="49" fill="#e9ebdd" stroke="#9aa5a2" stroke-width="5"/>
+<circle cx="1870" cy="1485" r="10" fill="#c9343a" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1893" y="1493" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="650" text-anchor="start" fill="#ffffff">R • резистор</text>
+<circle cx="1870" cy="1540" r="10" fill="#2e9f6a" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1893" y="1548" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="650" text-anchor="start" fill="#ffffff">G • резистор</text>
+<circle cx="1870" cy="1590" r="10" fill="#263747" stroke="#f7f9fa" stroke-width="3"/>
+<text x="1893" y="1598" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="650" text-anchor="start" fill="#ffffff">спільний −</text>
+<polyline points="1940,870 2020,870 2020,1290 1830,1290 1830,1485 1870,1485" fill="none" stroke="#c9343a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1940,940 2070,940 2070,1320 1800,1320 1800,1540 1870,1540" fill="none" stroke="#2e9f6a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="1870,1590 1800,1590 1800,1710" fill="none" stroke="#263747" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="2120" y="760" width="390" height="390" rx="18" fill="#eef2f5" stroke="#8b99a7" stroke-width="3"/>
+<text x="2315" y="815" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" font-weight="700" text-anchor="middle" fill="#496174">РЕЗЕРВ</text>
+<text x="2155" y="868" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="600" text-anchor="start" fill="#344d60">INA226 (на фото)</text>
+<text x="2155" y="911" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="600" text-anchor="start" fill="#344d60">GPIO8  → SDA</text>
+<text x="2155" y="949" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="600" text-anchor="start" fill="#344d60">GPIO9  → SCL</text>
+<text x="2155" y="988" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="600" text-anchor="start" fill="#344d60">3V3 + спільний GND</text>
+<text x="2155" y="1050" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="600" text-anchor="start" fill="#344d60">Мікрофон: модель уточнити</text>
+<text x="2155" y="1090" font-family="DejaVu Sans, Arial, sans-serif" font-size="20" font-weight="600" text-anchor="start" fill="#344d60">I²C або I²S — залежить від нього</text>
+<polyline points="1940,1010 2070,1010 2070,910 2120,910" fill="none" stroke="#8b99a7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="12 12"/>
+<polyline points="1940,1080 2090,1080 2090,950 2120,950" fill="none" stroke="#8b99a7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="12 12"/>
+<text x="90" y="1780" font-family="DejaVu Sans, Arial, sans-serif" font-size="26" font-weight="600" text-anchor="start" fill="#293f51">Перед пайкою: мультиметром виставити 5,0 В і 12,0 В; звірити написи контактів на власних модулях.</text>
+<text x="90" y="1820" font-family="DejaVu Sans, Arial, sans-serif" font-size="23" font-weight="500" text-anchor="start" fill="#506477">Пунктир = резерв, наразі не підключати. Місце шунта INA226 визначити перед монтажем.</text>
+</svg>

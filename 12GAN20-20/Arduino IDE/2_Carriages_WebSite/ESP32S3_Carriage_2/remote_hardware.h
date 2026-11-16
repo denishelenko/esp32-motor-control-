@@ -40,16 +40,11 @@ void updateLights(uint32_t now) {
 void writeMotor(int16_t pwm) {
   pwm = constrain(pwm, -int16_t(PWM_MAX), int16_t(PWM_MAX));
   if (MOTOR_DIRECTION_REVERSED) pwm = -pwm;
-  if (pwm > 0) {
-    ledcWrite(MOTOR_IN2_PIN, 0);
-    ledcWrite(MOTOR_IN1_PIN, pwm);
-  } else if (pwm < 0) {
-    ledcWrite(MOTOR_IN1_PIN, 0);
-    ledcWrite(MOTOR_IN2_PIN, -pwm);
-  } else {
-    ledcWrite(MOTOR_IN1_PIN, 0);
-    ledcWrite(MOTOR_IN2_PIN, 0);
-  }
+  // Disable both bridges before changing direction.
+  ledcWrite(MOTOR_PWM_PIN, 0);
+  digitalWrite(MOTOR_IN1_PIN, pwm > 0 ? HIGH : LOW);
+  digitalWrite(MOTOR_IN2_PIN, pwm < 0 ? HIGH : LOW);
+  ledcWrite(MOTOR_PWM_PIN, abs(pwm));
 }
 
 void updateMotor() {
