@@ -51,16 +51,11 @@ class MotorOutput {
     if (!ready_) return;
     const int8_t direction = pwm > 0 ? 1 : pwm < 0 ? -1 : 0;
     const int16_t physicalPwm = MOTOR_DIRECTION_REVERSED ? -pwm : pwm;
-    if (physicalPwm > 0) {
-      ledcWrite(MOTOR_IN2_PIN, 0);
-      ledcWrite(MOTOR_IN1_PIN, physicalPwm);
-    } else if (physicalPwm < 0) {
-      ledcWrite(MOTOR_IN1_PIN, 0);
-      ledcWrite(MOTOR_IN2_PIN, -physicalPwm);
-    } else {
-      ledcWrite(MOTOR_IN1_PIN, 0);
-      ledcWrite(MOTOR_IN2_PIN, 0);
-    }
+    // Disable the bridge before changing direction, then apply the new duty.
+    ledcWrite(MOTOR_PWM_PIN, 0);
+    digitalWrite(MOTOR_IN1_PIN, physicalPwm > 0 ? HIGH : LOW);
+    digitalWrite(MOTOR_IN2_PIN, physicalPwm < 0 ? HIGH : LOW);
+    ledcWrite(MOTOR_PWM_PIN, abs(physicalPwm));
     if (pwm) {
       lastDirection_ = direction;
     } else if (written_) {

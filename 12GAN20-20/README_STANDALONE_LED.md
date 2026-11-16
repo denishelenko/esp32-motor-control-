@@ -18,16 +18,16 @@
 
 | Призначення | NodeMCU v3 | Wemos D1 mini Pro | ESP32-S3 |
 |---|---|---|---|
-| ENA | Перемичка на L298N | D1 / GPIO5, PWM | Без окремого піна |
-| IN1 | D1 / GPIO5, PWM | D2 / GPIO4 | GPIO1 → A1A і B1A |
-| IN2 | D2 / GPIO4, PWM | D6 / GPIO12 | GPIO2 → A1B і B1B |
-| Серво, жовтий сигнал | D5 / GPIO14 | D5 / GPIO14 | GPIO42 → A1 TXS0108E, B1 → жовтий |
-| RGB-модуль, контакт R (червоний) | D0 / GPIO16 | D0 / GPIO16 | GPIO47 |
-| RGB-модуль, контакт G (зелений) | D7 / GPIO13 | D7 / GPIO13 | GPIO21 |
+| ENA / PWM | Перемичка на L298N | D1 / GPIO5, PWM | GPIO42 → PWMA і PWMB TB6612FNG |
+| IN1 | D1 / GPIO5, PWM | D2 / GPIO4 | GPIO2 → AIN1 і BIN1 TB6612FNG |
+| IN2 | D2 / GPIO4, PWM | D6 / GPIO12 | GPIO1 → AIN2 і BIN2 TB6612FNG |
+| Серво, жовтий сигнал | D5 / GPIO14 | D5 / GPIO14 | GPIO15 → A1 TXS0108E, B1 → жовтий |
+| RGB-модуль, контакт R (червоний) | D0 / GPIO16 | D0 / GPIO16 | GPIO16 |
+| RGB-модуль, контакт G (зелений) | D7 / GPIO13 | D7 / GPIO13 | GPIO17 |
 | GND | Спільна земля | Спільна земля | Спільна земля |
 
 На ESP32 це номери GPIO, НЕ порядкові номери ніжок. Звірте шовкографію саме вашої 44-pin плати-клона.
-Обрані GPIO1/2/42/47/21 виведені на стандартному DevKitC-1; GPIO42 не використовуйте одночасно для зовнішнього JTAG.
+Обрані GPIO1/2/15/16/17/42 виведені на стандартному DevKitC-1; GPIO42 не використовуйте одночасно для зовнішнього JTAG. [Повна схема TB6612FNG](WIRING_ESP32S3_TB6612FNG.md).
 [Карта Espressif](https://docs.espressif.com/projects/esp-idf/en/v4.4.3/esp32s3/hw-reference/esp32s3/user-guide-devkitc-1.html).
 
 ### Червоний і зелений канали RGB-модуля використовуються як автоматичний індикатор

@@ -16,12 +16,7 @@ inline void printBootInfo() {
     static_cast<unsigned long>(ESP.getPsramSize()));
 }
 inline bool motorPwmBegin() {
-  if (!ledcAttachChannel(MOTOR_IN1_PIN, PWM_FREQUENCY_HZ, 10, 0)) return false;
-  if (ledcAttachChannel(MOTOR_IN2_PIN, PWM_FREQUENCY_HZ, 10, 1)) return true;
-  ledcDetach(MOTOR_IN1_PIN);
-  pinMode(MOTOR_IN1_PIN, OUTPUT);
-  digitalWrite(MOTOR_IN1_PIN, LOW);
-  return false;
+  return ledcAttachChannel(MOTOR_PWM_PIN, PWM_FREQUENCY_HZ, 10, 0);
 }
 inline bool &servoAttached() { static bool attached = false; return attached; }
 inline bool servoPulse(uint32_t pulseUs) {
