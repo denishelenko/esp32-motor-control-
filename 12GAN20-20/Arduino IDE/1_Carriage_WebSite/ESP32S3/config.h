@@ -10,7 +10,7 @@
 constexpr char WIFI_SSID[] = "Motor-Control";
 constexpr char WIFI_PASSWORD[] = "motor8266";  // 8 characters minimum
 constexpr uint8_t WIFI_CHANNEL = 6;
-constexpr char MDNS_HOSTNAME[] = "motor";
+constexpr char MDNS_HOSTNAME[] = "motor-control";
 
 constexpr uint16_t HTTP_PORT = 80;
 constexpr uint16_t WEBSOCKET_PORT = 81;
