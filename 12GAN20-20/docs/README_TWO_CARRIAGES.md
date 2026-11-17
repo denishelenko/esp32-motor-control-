@@ -10,10 +10,10 @@
 
 ## Що прошивати
 
-1. [ESP32S3_Controller_Carriage_1.ino](<Arduino IDE/2_Carriages_WebSite/ESP32S3_Controller_Carriage_1/ESP32S3_Controller_Carriage_1.ino>) або профіль `dual_esp32s3_controller`.
-2. [ESP32S3_Carriage_2.ino](<Arduino IDE/2_Carriages_WebSite/ESP32S3_Carriage_2/ESP32S3_Carriage_2.ino>) або профіль `dual_esp32s3_remote`.
+1. [ESP32S3_Controller_Carriage_1.ino](<../Arduino IDE/2_Carriages_WebSite/ESP32S3_Controller_Carriage_1/ESP32S3_Controller_Carriage_1.ino>) або профіль `dual_esp32s3_controller`.
+2. [ESP32S3_Carriage_2.ino](<../Arduino IDE/2_Carriages_WebSite/ESP32S3_Carriage_2/ESP32S3_Carriage_2.ino>) або профіль `dual_esp32s3_remote`.
 
-Прошийте **обидві** плати з цієї пари. У PlatformIO відкрийте [папку проєкту](PlatformIO).
+Прошийте **обидві** плати з цієї пари. У PlatformIO відкрийте [папку проєкту](../PlatformIO).
 
 В Arduino IDE виберіть `ESP32S3 Dev Module`, Flash Size `16MB`, PSRAM `OPI PSRAM` і Upload Speed `115200`. Перевірені версії пакета `esp32 by Espressif Systems` 3.3.12, `ArduinoJson` 7.4.3 і `WebSockets` 2.7.2. Другий скетч використовує бібліотеки з пакета плат. Serial Monitor працює на `115200` бод.
 
@@ -65,7 +65,7 @@
 
 ## Робоча ділянка й ручне вимірювання часу
 
-У [конфігурації головної плати](<Arduino IDE/2_Carriages_WebSite/ESP32S3_Controller_Carriage_1/config.h>) задано `TRACK_LENGTH_M = 20` та `SAFE_MARGIN_M = 2`. Від країв залишається по 2 м, робочий відрізок становить 16 м, а на сайті видно координати від −8 до +8 м. Встановіть каретку у фізичний центр і натисніть «Позначити поточне місце як центр», щоб скинути розрахункову координату.
+У [конфігурації головної плати](<../Arduino IDE/2_Carriages_WebSite/ESP32S3_Controller_Carriage_1/config.h>) задано `TRACK_LENGTH_M = 20` та `SAFE_MARGIN_M = 2`. Від країв залишається по 2 м, робочий відрізок становить 16 м, а на сайті видно координати від −8 до +8 м. Встановіть каретку у фізичний центр і натисніть «Позначити поточне місце як центр», щоб скинути розрахункову координату.
 
 Тест часу проходження тепер виконується основною прошивкою після ручного вимірювання; окремий тестовий скетч у цій структурі не зберігається.
 
