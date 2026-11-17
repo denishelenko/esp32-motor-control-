@@ -34,6 +34,7 @@ uint32_t lastLightToggleAt = 0;
 #include "controller_hardware.h"
 #include "controller_estimator.h"
 #include "controller_motion.h"
+#include "carriage_commands.h"
 
 bool nodeSeenRecently() { return nodeKnown && millis() - nodeSeenAt < NODE_LINK_TIMEOUT_MS; }
 bool nodeOnline() {
@@ -140,7 +141,7 @@ void handleUiCommand(const uint8_t *payload, size_t length) {
     carriagesLinked = nodeOnline() && (doc["enabled"] | false);
   } else if (!strcmp(type, "speed")) {
     const uint8_t speed = constrain(doc["speed"] | 50, 1, 100);
-    applyToSelected(selected, [&](uint8_t i) { carriages[i].speed = speed; });
+    applyToSelected(selected, [&](uint8_t i) { MotorGroup(i).setSpeed(speed); });
   } else if (!strcmp(type, "timed_test")) {
     // Physical distance is measured by the user; the browser never supplies metres.
     const char *direction = doc["direction"] | "";
@@ -152,7 +153,9 @@ void handleUiCommand(const uint8_t *payload, size_t length) {
     carriagesLinked = false;
     stopCarriage(0);
     stopCarriage(1);
-    startTimedTest(selected, sign, speed, durationMs);
+    MotorGroup motor(selected);
+    motor.setSpeed(speed);
+    motor.moveFor(sign > 0 ? Direction::Right : Direction::Left, durationMs);
   } else if (!strcmp(type, "target")) {
     const float target = doc["position"] | 0.0f;
     if (!isfinite(target)) return;

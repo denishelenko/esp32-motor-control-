@@ -41,10 +41,12 @@ void setCarriageTarget(uint8_t index, float target, uint8_t speed) {
   c.speed = constrain(speed, uint8_t(1), uint8_t(100));
   closeServo(c);
   c.mode = MotionMode::Target;
+  eventLog("COMMAND", "MOVE_TARGET_START", "carriage=%u target=%.2f m speed=%u%% estimate", index+1, c.target, c.speed);
 }
 
 void stopCarriage(uint8_t index, bool keepServo = false) {
   CarriageState &c = carriages[index];
+  if (c.mode != MotionMode::Idle) eventLog("COMMAND", "STOP", "carriage=%u", index+1);
   c.target = c.position;
   c.outputPwm = 0;
   if (!keepServo) closeServo(c);
@@ -61,6 +63,7 @@ void startTimedTest(uint8_t index, int8_t direction, uint8_t speed, uint32_t dur
   c.testDurationMs = durationMs;
   c.testStartedAt = millis();
   c.mode = MotionMode::TimedTest;
+  eventLog("COMMAND", "TIMED_START", "carriage=%u direction=%s speed=%u%% duration=%lu ms", index+1, direction>0?"RIGHT":"LEFT", speed, (unsigned long)durationMs);
 }
 
 template <typename Action>
@@ -121,6 +124,7 @@ void updateCarriage(uint8_t index) {
   if (c.servoEnabled && c.nextServoAt && int32_t(now - c.nextServoAt) >= 0) {
     c.servoPosition = c.servoPosition ? 0 : c.servoAngle;
     c.nextServoAt = now + (c.servoPosition ? SERVO_OPEN_HOLD_MS : SERVO_CLOSED_HOLD_MS);
+    eventLog("SERVO_SCHEDULE", "NEXT_ACTION", "carriage=%u in=%lu ms", index + 1, (unsigned long)(c.nextServoAt - now));
   }
 
   if (c.mode == MotionMode::Jog && now - c.lastJogAt >= JOG_TIMEOUT_MS) {
@@ -128,6 +132,7 @@ void updateCarriage(uint8_t index) {
   }
   if (c.mode == MotionMode::TimedTest) {
     if (now - c.testStartedAt >= c.testDurationMs) {
+      eventLog("COMMAND", "TIMED_END", "carriage=%u elapsed=%lu ms", index+1, (unsigned long)(now-c.testStartedAt));
       stopCarriage(index);
     } else {
       c.outputPwm = int16_t(c.testDirection * map(c.speed, 0, 100, 0, PWM_MAX));
@@ -146,7 +151,7 @@ void updateCarriage(uint8_t index) {
   const float delta = c.target - c.position;
   if (c.mode == MotionMode::Idle || fabsf(delta) <= POSITION_TOLERANCE_M) {
     c.outputPwm = 0;
-    if (c.mode == MotionMode::Target) c.mode = MotionMode::Idle;
+    if (c.mode == MotionMode::Target) { eventLog("COMMAND", "TARGET_END", "carriage=%u estimated_position=%.2f m", index+1, c.position); c.mode = MotionMode::Idle; }
     return;
   }
   const float direction = delta > 0 ? 1.0f : -1.0f;

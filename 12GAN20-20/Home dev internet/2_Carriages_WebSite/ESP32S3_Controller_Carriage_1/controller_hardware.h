@@ -1,12 +1,17 @@
 #pragma once
+#include "event_debug.h"
 
 // ESP32-S3 motor, servo and indicator outputs.
 
 void writeLocalMotor(int16_t pwm) {
   pwm = constrain(pwm, -int16_t(PWM_MAX), int16_t(PWM_MAX));
+  diagnosticMotor(pwm);
   if (MOTOR_DIRECTION_REVERSED) pwm = -pwm;
-  // Disable both bridges before changing direction.
-  ledcWrite(MOTOR_PWM_PIN, 0);
+  // Only disable PWM when the electrical direction changes.
+  static int8_t previousDirection = 0;
+  const int8_t direction = (pwm > 0) - (pwm < 0);
+  if (direction != previousDirection) ledcWrite(MOTOR_PWM_PIN, 0);
+  previousDirection = direction;
   digitalWrite(MOTOR_IN1_PIN, pwm > 0 ? HIGH : LOW);
   digitalWrite(MOTOR_IN2_PIN, pwm < 0 ? HIGH : LOW);
   ledcWrite(MOTOR_PWM_PIN, abs(pwm));
@@ -15,7 +20,7 @@ void writeLocalMotor(int16_t pwm) {
 void writeLights(bool redEnabled) {
   if (redOutputOn != redEnabled) {
     redOutputOn = redEnabled;
-    digitalWrite(LIGHT_RED_PIN, redEnabled ? HIGH : LOW);
+    diagnosticLed(LIGHT_RED_PIN, redEnabled, lightStrobeActive ? "MOTOR_STROBE" : "MOTOR_STOP");
   }
 }
 
@@ -23,10 +28,10 @@ void updateLights(uint32_t now) {
   if (localAppliedPwm == 0) {
     lightStrobeActive = false;
     writeLights(false);
-    digitalWrite(LIGHT_GREEN_PIN, HIGH);
+    diagnosticLed(LIGHT_GREEN_PIN, !(actionBlinkUntil && int32_t(now - actionBlinkUntil) < 0), actionBlinkUntil && int32_t(now - actionBlinkUntil) < 0 ? actionBlinkReason : "IDLE");
     return;
   }
-  digitalWrite(LIGHT_GREEN_PIN, LOW);
+  diagnosticLed(LIGHT_GREEN_PIN, actionBlinkUntil && int32_t(now - actionBlinkUntil) < 0, actionBlinkUntil && int32_t(now - actionBlinkUntil) < 0 ? actionBlinkReason : "MOTOR_ACTIVE");
   if (!lightStrobeActive) {
     lightStrobeActive = true;
     lastLightToggleAt = now;
@@ -68,5 +73,6 @@ void writeLocalServo(uint8_t physicalAngle) {
   const uint16_t pulseUs = SERVO_MIN_PULSE_US +
       (uint32_t(SERVO_MAX_PULSE_US - SERVO_MIN_PULSE_US) * commandAngle) / 180;
   const uint32_t duty = (uint64_t(pulseUs) * SERVO_FREQUENCY_HZ * 16384ULL + 500000ULL) / 1000000ULL;
+  if (!diagnosticServo(physicalAngle, pulseUs)) return;
   ledcWrite(SERVO_SIGNAL_PIN, duty);
 }
