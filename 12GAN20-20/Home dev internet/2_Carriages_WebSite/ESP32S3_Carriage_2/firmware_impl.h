@@ -95,13 +95,13 @@ void setup() {
   digitalWrite(LIGHT_GREEN_PIN, HIGH);
 
   if (!homeWifi.begin(prepareForOta) ||
-      !carriageRadio.begin(WIFI_IF_STA, WIFI_CHANNEL)) {
+      !carriageRadio.begin(WIFI_IF_STA, 0)) {
     Serial.println("[CARRIAGE 2] ESP-NOW initialization failed; motor disabled");
     return;
   }
   actuatorsReady = true;
   homeWifi.service(true);
-  Serial.printf("[CARRIAGE 2] ESP-NOW discovery on channel %u\n", unsigned(WIFI_CHANNEL));
+  Serial.printf("[CARRIAGE 2] ESP-NOW uses current Wi-Fi channel; fallback %u\n", unsigned(WIFI_CHANNEL));
 }
 
 void loop() {

@@ -7,8 +7,8 @@
 #endif
 
 // Home profile: the ESP32-S3 joins an existing 2.4 GHz access point.
-// That access point must use channel 6 for ESP-NOW on both carriages.
-#include "home_wifi.local.h"  // Local private credentials, not committed to Git.
+// Both carriages must connect to the same 2.4 GHz access point.
+#include "wifi_settings.h"  // Edit the Wi-Fi name and password here.
 constexpr const char* WIFI_SSID = HOME_WIFI_SSID;
 constexpr const char* WIFI_PASSWORD = HOME_WIFI_PASSWORD;
 constexpr uint8_t WIFI_CHANNEL = 6;
@@ -17,7 +17,7 @@ constexpr char MDNS_HOSTNAME[] = "motor-control";
 constexpr char OTA_HOSTNAME[] = "motor-control";
 constexpr char OTA_PASSWORD[] = "motor8266";
 constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 30000;
-constexpr uint32_t WIFI_ATTEMPT_TIMEOUT_MS = 5000;
+constexpr uint32_t WIFI_ATTEMPT_TIMEOUT_MS = 15000;
 constexpr uint16_t HTTP_PORT = 80;
 constexpr uint16_t WEBSOCKET_PORT = 81;
 

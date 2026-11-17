@@ -5,7 +5,7 @@
 #include <ArduinoOTA.h>
 #include <esp_wifi.h>
 
-// Both sketches keep ESP-NOW on the external access point's fixed channel.
+// Wi-Fi and ESP-NOW share the channel selected by the external access point.
 // Reconnection can scan briefly, so it is attempted only while the motor is idle.
 class HomeWifiOta {
  public:
@@ -14,6 +14,9 @@ class HomeWifiOta {
     WiFi.persistent(false);
     WiFi.setAutoReconnect(false);
     if (!WiFi.mode(WIFI_STA) || esp_wifi_set_ps(WIFI_PS_NONE) != ESP_OK) return false;
+    WiFi.onEvent([](arduino_event_id_t, arduino_event_info_t info) {
+      Serial.printf("[HOME] Wi-Fi disconnected, reason=%u\n", unsigned(info.wifi_sta_disconnected.reason));
+    }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
     attemptConnect();
     const uint32_t startedAt = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - startedAt < WIFI_ATTEMPT_TIMEOUT_MS) {
@@ -21,8 +24,8 @@ class HomeWifiOta {
     }
     checkConnection();
     if (WiFi.status() != WL_CONNECTED) abandonAttempt();
-    return esp_wifi_set_channel(WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE) == ESP_OK ||
-           WiFi.status() == WL_CONNECTED;
+    if (WiFi.status() == WL_CONNECTED) return true;
+    return esp_wifi_set_channel(WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE) == ESP_OK;
   }
 
   void service(bool idle) {
@@ -49,11 +52,12 @@ class HomeWifiOta {
   void attemptConnect() {
     attemptAt_ = millis();
     connecting_ = true;
-    // The external AP must be configured to WIFI_CHANNEL on 2.4 GHz.
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD, WIFI_CHANNEL);
+    Serial.printf("[HOME] Connecting to %s (2.4 GHz; automatic channel)...\n", WIFI_SSID);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   }
 
   void abandonAttempt() {
+    Serial.printf("[HOME] Connection not established: status=%d. Retry while stopped.\n", int(WiFi.status()));
     WiFi.disconnect(false, false);
     connecting_ = false;
     esp_wifi_set_channel(WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE);
@@ -63,12 +67,8 @@ class HomeWifiOta {
     if (WiFi.status() != WL_CONNECTED) return;
     uint8_t primary = 0;
     wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
-    if (esp_wifi_get_channel(&primary, &secondary) != ESP_OK || primary != WIFI_CHANNEL) {
-      Serial.printf("[HOME] AP channel must be %u; rejecting channel %u\n",
-                    unsigned(WIFI_CHANNEL), unsigned(primary));
-      abandonAttempt();
-      return;
-    }
+    if (esp_wifi_get_channel(&primary, &secondary) != ESP_OK) return;
+    if (connecting_) Serial.printf("[HOME] Connected on Wi-Fi channel %u\n", unsigned(primary));
     connecting_ = false;
   }
 

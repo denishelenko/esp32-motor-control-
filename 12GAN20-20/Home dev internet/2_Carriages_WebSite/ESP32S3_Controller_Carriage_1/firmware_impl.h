@@ -247,7 +247,7 @@ void setup() {
     Serial.println("[CARRIAGE 1] Wi-Fi station initialization failed");
     return;
   }
-  if (!carriageRadio.begin(WIFI_IF_STA, WIFI_CHANNEL)) {
+  if (!carriageRadio.begin(WIFI_IF_STA, 0)) {
     Serial.println("[CARRIAGE 1] ESP-NOW unavailable");
   }
   httpServer.on("/", HTTP_GET, [] { httpServer.send_P(200, "text/html; charset=utf-8", WEB_UI); });

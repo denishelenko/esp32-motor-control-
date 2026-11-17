@@ -6,7 +6,7 @@
 #endif
 
 // Home profile: connect to the same external 2.4 GHz access point as carriage 1.
-#include "home_wifi.local.h"  // Local private credentials, not committed to Git.
+#include "wifi_settings.h"  // Edit the Wi-Fi name and password here.
 constexpr const char* WIFI_SSID = HOME_WIFI_SSID;
 constexpr const char* WIFI_PASSWORD = HOME_WIFI_PASSWORD;
 constexpr uint8_t WIFI_CHANNEL = 6;
@@ -15,7 +15,7 @@ constexpr char MDNS_HOSTNAME[] = "motor-carriage-2";
 constexpr char OTA_HOSTNAME[] = "motor-carriage-2";
 constexpr char OTA_PASSWORD[] = "motor8266";
 constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 30000;
-constexpr uint32_t WIFI_ATTEMPT_TIMEOUT_MS = 5000;
+constexpr uint32_t WIFI_ATTEMPT_TIMEOUT_MS = 15000;
 
 // One motor per bridge. Both bridges receive the same direction and PWM.
 constexpr uint8_t MOTOR_IN1_PIN = 2;      // GPIO2 -> TB6612FNG AIN1 and BIN1
