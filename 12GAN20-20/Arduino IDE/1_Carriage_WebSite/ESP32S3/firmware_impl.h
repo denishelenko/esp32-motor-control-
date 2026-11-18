@@ -466,6 +466,31 @@ void handleWs(uint8_t client, WStype_t type, uint8_t *payload, size_t length) {
   }
 }
 
+#ifdef SINGLE_CARRIAGE_HOME_WIFI
+uint32_t homeWifiAttemptAt = 0;
+
+void updateHomeWifi() {
+  const bool connected = WiFi.status() == WL_CONNECTED;
+  if (connected != networkReady) {
+    networkReady = connected;
+    if (connected) {
+      if (MDNS.begin(MDNS_HOSTNAME)) MDNS.addService("http", "tcp", HTTP_PORT);
+      Serial.printf("[HOME] Connected, site: http://%s.local/ or http://%s/\n",
+                    MDNS_HOSTNAME, WiFi.localIP().toString().c_str());
+    } else {
+      stopAll();
+      MDNS.end();
+      Serial.println("[HOME] Wi-Fi disconnected; carriage stopped");
+    }
+  }
+  const uint32_t now = millis();
+  if (!connected && now - homeWifiAttemptAt >= 30000) {
+    homeWifiAttemptAt = now;
+    WiFi.reconnect();
+  }
+}
+#endif
+
 void setup() {
   Serial.begin(SERIAL_BAUD); randomSeed(micros());
   pinMode(MOSFET_PIN, OUTPUT);
@@ -480,6 +505,14 @@ void setup() {
   // The servo receives its first pulse when the user starts its cycle.
   Serial.println(PINOUT_SERIAL_TEXT);
   WiFi.persistent(false);
+#ifdef SINGLE_CARRIAGE_HOME_WIFI
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
+  homeWifiAttemptAt = millis();
+  WiFi.begin(HOME_WIFI_SSID, HOME_WIFI_PASSWORD);
+  Serial.println("[HOME] Connecting to the configured 2.4 GHz network...");
+#else
   WiFi.mode(WIFI_AP);
   WiFi.setSleep(false);
   Serial.println("[WIFI] Starting Motor-Control AP...");
@@ -489,13 +522,17 @@ void setup() {
   Serial.printf("[WIFI] %s IP=%s channel=%ld\n", networkReady ? "OK" : "FAILED",
     WiFi.softAPIP().toString().c_str(), static_cast<long>(WiFi.channel()));
   if (MDNS.begin(MDNS_HOSTNAME)) MDNS.addService("http", "tcp", HTTP_PORT);
+  Serial.println("Open http://motor-control.local or http://192.168.4.1");
+#endif
   httpServer.on("/", [](){ httpServer.send_P(200, "text/html; charset=utf-8", WEB_UI); });
   httpServer.onNotFound([](){ httpServer.sendHeader("Location", "/"); httpServer.send(302, "text/plain", ""); });
   httpServer.begin(); wsServer.begin(); wsServer.onEvent(handleWs);
-  Serial.println("Open http://motor-control.local or http://192.168.4.1");
 }
 
 void loop() {
+#ifdef SINGLE_CARRIAGE_HOME_WIFI
+  updateHomeWifi();
+#endif
   httpServer.handleClient(); wsServer.loop();
   updateMotion();
   const uint32_t now = millis();
