@@ -6,9 +6,6 @@
 #endif
 
 // Home profile: connect to the same external 2.4 GHz access point as carriage 1.
-#include "wifi_settings.h"  // Edit the Wi-Fi name and password here.
-constexpr const char* WIFI_SSID = HOME_WIFI_SSID;
-constexpr const char* WIFI_PASSWORD = HOME_WIFI_PASSWORD;
 constexpr uint8_t WIFI_CHANNEL = 6;
 constexpr uint32_t ESPNOW_GROUP_ID = 0x43525247UL;
 constexpr char MDNS_HOSTNAME[] = "motor-carriage-2";

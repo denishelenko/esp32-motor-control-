@@ -8,9 +8,6 @@
 
 // Home profile: the ESP32-S3 joins an existing 2.4 GHz access point.
 // Both carriages must connect to the same 2.4 GHz access point.
-#include "wifi_settings.h"  // Edit the Wi-Fi name and password here.
-constexpr const char* WIFI_SSID = HOME_WIFI_SSID;
-constexpr const char* WIFI_PASSWORD = HOME_WIFI_PASSWORD;
 constexpr uint8_t WIFI_CHANNEL = 6;
 constexpr uint32_t ESPNOW_GROUP_ID = 0x43525247UL;
 constexpr char MDNS_HOSTNAME[] = "motor-control";

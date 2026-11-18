@@ -31,7 +31,7 @@
 
 **Власний Wi‑Fi ESP:** підключіться до `Motor-Control` з паролем `motor8266` та відкрийте [http://motor-control.local/](http://motor-control.local/) або [http://192.168.4.1/](http://192.168.4.1/).
 
-**Home:** у файлі `wifi_settings.h` кожної каретки впишіть назву та пароль однієї мережі 2,4 ГГц. Підключіть телефон до тієї ж мережі та відкрийте [http://motor-control.local/](http://motor-control.local/). Якщо ім’я не знаходиться, використайте IP головної ESP із Serial Monitor. Пароль не публікуйте. [Детальніше про Home та OTA](<Home dev internet/2_Carriages_WebSite/README.md>).
+**Home:** впишіть назву й пароль мережі 2,4 ГГц у основний файл `.ino` кожної плати для парного режиму або у `PlatformIO/src/single_home_esp32s3.cpp` для однієї каретки. Підключіть телефон до тієї ж мережі та відкрийте [http://motor-control.local/](http://motor-control.local/). Якщо ім’я не знаходиться, використайте IP головної ESP із Serial Monitor. Пароль не публікуйте. [Детальніше про Home та OTA](<Home dev internet/2_Carriages_WebSite/README.md>).
 
 ## Підключення та калібрування
 

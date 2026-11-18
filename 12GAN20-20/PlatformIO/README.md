@@ -41,7 +41,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\export-controller.ps1
 | `single_esp32s3` | ESP32-S3 N16R8, одна каретка та сайт |
 | `dual_esp32s3_controller` | ESP32-S3 N16R8, головна каретка та сайт |
 | `dual_esp32s3_remote` | ESP32-S3 N16R8, віддалена каретка |
-| `dual_home_main_serial` / `dual_home_main_ota` | Головна ESP32-S3 у зовнішній мережі з `wifi_settings.h`, USB / OTA |
+| `dual_home_main_serial` / `dual_home_main_ota` | Головна ESP32-S3 у домашній мережі з налаштуванням у її основному `.ino`, USB / OTA |
 | `dual_home_remote_serial` / `dual_home_remote_ota` | Друга ESP32-S3 у тій самій мережі, USB / OTA |
 
 Усі активні ESP32-S3 прошивки використовують однакові піни: `1` → AIN1+BIN1 TB6612FNG, `2` → AIN2+BIN2, `42` → PWMA+PWMB (ШІМ), `21` → A1 TXS0108E для сервопривода, `16` → червоний LED, `17` → зелений LED. [Схема підключення](../docs/WIRING_ESP32S3_TB6612FNG.md). Профілі PlatformIO підключають відповідні скетчі з папки `Arduino IDE` або `Home dev internet`, тому окремих копій пінів у `src` немає.
@@ -71,4 +71,4 @@ pio run -e dual_esp32s3_remote -t upload
 
 Редагуйте `config.h` і код у [Arduino IDE](<../Arduino IDE>). Файли в `src` підключають відповідні скетчі, тому обидва середовища збирають одні й ті самі вихідні файли. Під час копіювання проєкту збережіть обидві папки поруч.
 
-Для окремої Home-версії редагуйте скетчі у [Home dev internet/2_Carriages_WebSite](<../Home dev internet/2_Carriages_WebSite>). Першу прошивку кожної плати зробіть через `*_serial`. Потім для Wi-Fi оновлення виберіть відповідний `*_ota` і натисніть **Upload**. Мережа має існувати окремо і працювати на 2,4 ГГц; її назву та пароль задайте у `wifi_settings.h` кожної каретки. Якщо ім'я `motor-control.local` чи `motor-carriage-2.local` не знаходиться, замініть `upload_port` в `platformio.ini` на фактичну IP-адресу плати. Деталі й вимоги до OTA є в README Home-версії.
+Для окремої Home-версії редагуйте скетчі у [Home dev internet/2_Carriages_WebSite](<../Home dev internet/2_Carriages_WebSite>). Першу прошивку кожної плати зробіть через `*_serial`. Потім для Wi-Fi оновлення виберіть відповідний `*_ota` і натисніть **Upload**. Мережа має існувати окремо і працювати на 2,4 ГГц; її назву та пароль задайте у відповідному основному файлі `.ino` для двох кареток або в `src/single_home_esp32s3.cpp` для однієї каретки з профілем `single_home_esp32s3`. Якщо ім'я `motor-control.local` чи `motor-carriage-2.local` не знаходиться, замініть `upload_port` в `platformio.ini` на фактичну IP-адресу плати. Деталі й вимоги до OTA є в README Home-версії.
