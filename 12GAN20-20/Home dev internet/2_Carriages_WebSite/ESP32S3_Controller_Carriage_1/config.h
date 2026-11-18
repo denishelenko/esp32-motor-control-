@@ -22,11 +22,11 @@ constexpr uint16_t HTTP_PORT = 80;
 constexpr uint16_t WEBSOCKET_PORT = 81;
 
 // One motor per bridge. Both bridges receive the same direction and PWM.
-constexpr uint8_t MOTOR_IN1_PIN = 2;      // GPIO2 -> TB6612FNG AIN1 and BIN1
-constexpr uint8_t MOTOR_IN2_PIN = 1;      // GPIO1 -> TB6612FNG AIN2 and BIN2
+constexpr uint8_t MOTOR_IN1_PIN = 1;      // GPIO1 -> TB6612FNG AIN1 and BIN1
+constexpr uint8_t MOTOR_IN2_PIN = 2;      // GPIO2 -> TB6612FNG AIN2 and BIN2
 constexpr bool MOTOR_DIRECTION_REVERSED = false;
 constexpr uint8_t MOTOR_PWM_PIN = 42;     // GPIO42 -> PWMA and PWMB
-constexpr uint8_t SERVO_SIGNAL_PIN = 15;  // GPIO15 -> TXS0108E A1; B1 -> servo signal.
+constexpr uint8_t SERVO_SIGNAL_PIN = 21;  // GPIO21 -> TXS0108E A1; B1 -> servo signal.
 constexpr uint8_t LIGHT_RED_PIN = 16;     // GPIO16 -> RGB R through resistor
 constexpr uint8_t LIGHT_GREEN_PIN = 17;   // GPIO17 -> RGB G through resistor
 constexpr uint8_t SERVO_DEFAULT_ANGLE = 45;  // Physical degrees; command is doubled.

@@ -17,11 +17,11 @@ constexpr uint16_t WEBSOCKET_PORT = 81;
 
 // One motor per bridge. Fan out each direction signal to both logic inputs.
 constexpr char PINOUT_SERIAL_TEXT[] = "[PINS] 2=IN1 A+B, 1=IN2 A+B, 42=PWMA+PWMB, 15=TXS A1, 16=RED, 17=GREEN";
-constexpr uint8_t MOTOR_IN1_PIN = 2;       // TB6612FNG AIN1 and BIN1
-constexpr uint8_t MOTOR_IN2_PIN = 1;       // TB6612FNG AIN2 and BIN2
+constexpr uint8_t MOTOR_IN1_PIN = 1;       // TB6612FNG AIN1 and BIN1
+constexpr uint8_t MOTOR_IN2_PIN = 2;       // TB6612FNG AIN2 and BIN2
 constexpr bool MOTOR_DIRECTION_REVERSED = false;
 constexpr uint8_t MOTOR_PWM_PIN = 42;     // GPIO42 -> PWMA and PWMB
-constexpr uint8_t SERVO_SIGNAL_PIN = 15;   // TXS0108E A1; B1 to servo signal
+constexpr uint8_t SERVO_SIGNAL_PIN = 21;   // TXS0108E A1; B1 to servo signal
 constexpr uint8_t LIGHT_RED_PIN = 16;
 constexpr uint8_t LIGHT_GREEN_PIN = 17;
 
@@ -110,7 +110,7 @@ constexpr uint32_t RAMP_INTERVAL_MS = 10;
 constexpr int16_t RAMP_STEP = 24;
 
 constexpr bool safeOutputPin(uint8_t pin) {
-  return pin == 1 || pin == 2 || pin == 15 || pin == 16 || pin == 17 || pin == 42;
+  return pin == 1 || pin == 2 || pin == 15 || pin == 16 || pin == 21 || pin == 17 || pin == 42;
 }
 static_assert(safeOutputPin(MOTOR_IN1_PIN) && safeOutputPin(MOTOR_IN2_PIN) &&
               safeOutputPin(MOTOR_PWM_PIN),

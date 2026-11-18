@@ -44,7 +44,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\export-controller.ps1
 | `dual_home_main_serial` / `dual_home_main_ota` | Головна ESP32-S3 у зовнішній мережі з `wifi_settings.h`, USB / OTA |
 | `dual_home_remote_serial` / `dual_home_remote_ota` | Друга ESP32-S3 у тій самій мережі, USB / OTA |
 
-Усі активні ESP32-S3 прошивки використовують однакові піни: `2` → AIN1+BIN1 TB6612FNG, `1` → AIN2+BIN2, `42` → PWMA+PWMB (ШІМ), `15` → A1 TXS0108E для сервопривода, `16` → червоний LED, `17` → зелений LED. [Схема підключення](../docs/WIRING_ESP32S3_TB6612FNG.md). Профілі PlatformIO підключають відповідні скетчі з папки `Arduino IDE` або `Home dev internet`, тому окремих копій пінів у `src` немає.
+Усі активні ESP32-S3 прошивки використовують однакові піни: `1` → AIN1+BIN1 TB6612FNG, `2` → AIN2+BIN2, `42` → PWMA+PWMB (ШІМ), `21` → A1 TXS0108E для сервопривода, `16` → червоний LED, `17` → зелений LED. [Схема підключення](../docs/WIRING_ESP32S3_TB6612FNG.md). Профілі PlatformIO підключають відповідні скетчі з папки `Arduino IDE` або `Home dev internet`, тому окремих копій пінів у `src` немає.
 
 Для двох кареток прошийте головну й віддалену плати відповідними профілями. Для ESP32-S3 задані 16 МБ flash, OPI PSRAM і прошивання через USB-UART на 921600 бод. Номер COM визначається автоматично. За потреби додайте `upload_port = COM6` у потрібний профіль, підставивши порт плати. Якщо на високій швидкості виникають помилки передавання, встановіть `upload_speed = 460800` або `115200` у потрібному профілі. Serial Monitor працює на 115200 бод.
 

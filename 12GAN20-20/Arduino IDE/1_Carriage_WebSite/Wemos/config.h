@@ -21,11 +21,11 @@ constexpr char CONTROLLER_IP[] = "192.168.4.1";
 #error Select ESP32S3 Dev Module, not ESP32/ESP8266
 #endif
 constexpr char PINOUT_NAME[] = "ESP32-S3 N16R8";
-constexpr char PINOUT_SERIAL_TEXT[] = "[PINS] GPIO5=ENA GPIO6=IN1 GPIO7=IN2 GPIO15=SERVO GPIO16=RED GPIO17=GREEN";
+constexpr char PINOUT_SERIAL_TEXT[] = "[PINS] GPIO5=ENA GPIO6=IN1 GPIO7=IN2 GPIO21=SERVO GPIO16=RED GPIO17=GREEN";
 constexpr uint8_t MOTOR_ENA_PIN = 5;
 constexpr uint8_t MOTOR_IN1_PIN = 6;
 constexpr uint8_t MOTOR_IN2_PIN = 7;
-constexpr uint8_t SERVO_SIGNAL_PIN = 15;
+constexpr uint8_t SERVO_SIGNAL_PIN = 21;
 constexpr uint8_t LIGHT_RED_PIN = 16;
 constexpr uint8_t LIGHT_GREEN_PIN = 17;
 #elif defined(PINOUT_WEMOS_D1_MINI_PRO)
@@ -140,7 +140,7 @@ constexpr int16_t RAMP_STEP = 24;
 
 constexpr bool safeOutputPin(uint8_t pin) {
 #if defined(PINOUT_ESP32_S3)
-  return pin == 4 || pin == 5 || pin == 6 || pin == 7 || pin == 15 || pin == 16 || pin == 17;
+  return pin == 4 || pin == 5 || pin == 6 || pin == 7 || pin == 15 || pin == 16 || pin == 21 || pin == 17;
 #else
   return pin == 4 || pin == 5 || pin == 12 || pin == 13 || pin == 14 || pin == 16;
 #endif
