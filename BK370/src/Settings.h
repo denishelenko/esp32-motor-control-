@@ -3,14 +3,14 @@
 
 namespace bk370 {
 struct MotorSettings {
-  uint8_t dir, pwm, encoderA, encoderB;
+  uint8_t pwmA, pwmB, encoderA, encoderB;
   bool reverseMotor, reverseEncoder;
   float countsPerMeter;
   float dutyMultiplier;
 };
 constexpr MotorSettings Motors[2] = {
-    {1, 2, 4, 5, false, false, 0, 1.0f},
-    {42, 41, 6, 7, false, false, 0, 1.0f}
+    {1, 2, 4, 5, false, false, 0, 1.0f},  // M1A, M1B, encoder A, B
+    {42, 41, 6, 7, false, false, 0, 1.0f}  // M2A, M2B, encoder A, B
 };
 // Enable only after checking the power supply and hardware current limiting.
 // Position commands additionally require calibration and a fresh center.

@@ -28,12 +28,22 @@ class MotorGroup {
     encodersReady = true;
     for (unsigned i = 0; i < 2; ++i) {
       const auto &cfg = Motors[i];
-      digitalWrite(cfg.pwm, LOW);
-      pinMode(cfg.pwm, OUTPUT);
-      pinMode(cfg.dir, OUTPUT);
-      digitalWrite(cfg.dir, LOW);
-      // Channels 0/1 share identical frequency and resolution.
-      pwmReady_[i] = ledcAttachChannel(cfg.pwm, 1000, 10, i);
+      pinMode(cfg.pwmA, OUTPUT);
+      pinMode(cfg.pwmB, OUTPUT);
+      digitalWrite(cfg.pwmA, LOW);
+      digitalWrite(cfg.pwmB, LOW);
+      // MDD3A requires one PWM input per direction. Startup is LOW/LOW.
+      const bool a = ledcAttachChannel(cfg.pwmA, 1000, 10, i * 2);
+      const bool b = ledcAttachChannel(cfg.pwmB, 1000, 10, i * 2 + 1);
+      pwmReady_[i] = a && b;
+      if (!pwmReady_[i]) {
+        if (a) ledcDetach(cfg.pwmA);
+        if (b) ledcDetach(cfg.pwmB);
+        pinMode(cfg.pwmA, OUTPUT);
+        pinMode(cfg.pwmB, OUTPUT);
+        digitalWrite(cfg.pwmA, LOW);
+        digitalWrite(cfg.pwmB, LOW);
+      }
       ready &= pwmReady_[i];
       encodersReady &= encoder_[i].begin(cfg);
     }
@@ -236,11 +246,19 @@ class MotorGroup {
   }
   void write(unsigned i, int val, uint32_t now) {
     if (!pwmReady_[i] || val == applied[i]) return;
-    if (!val || (val > 0) != (applied[i] > 0) || !applied[i]) {
-      ledcWrite(Motors[i].pwm, 0);
-      if (val) digitalWrite(Motors[i].dir, (val > 0) != Motors[i].reverseMotor);
+    const auto &cfg = Motors[i];
+    const int physical = cfg.reverseMotor ? -val : val;
+    // Clear the opposite input before applying duty to the selected input.
+    if (physical > 0) {
+      ledcWrite(cfg.pwmB, 0);
+      ledcWrite(cfg.pwmA, physical);
+    } else if (physical < 0) {
+      ledcWrite(cfg.pwmA, 0);
+      ledcWrite(cfg.pwmB, -physical);
+    } else {
+      ledcWrite(cfg.pwmA, 0);
+      ledcWrite(cfg.pwmB, 0);
     }
-    if (val) ledcWrite(Motors[i].pwm, abs(val));
     if ((!val) != (!applied[i])) log("PWM", "motor=%u duty=%d/1023 time=%lu", i + 1, val, (unsigned long)now);
     applied[i] = val;
   }

@@ -1,5 +1,7 @@
 # Схема BK370 · однакова на кожній каретці
 
+[1. MDD3A і роз’єм BK370](photos/01-mdd3a-bk370.png) · [2. Контакти ESP32](photos/02-esp32-pins.png) · [3. Живлення, INA226, TXS0108E і D4184](photos/03-power-and-accessories.png)
+
 ```mermaid
 flowchart TD
     BAT["Акумулятор 3S1P + BMS"] -->|"P+"| SW["Головний вимикач"]
@@ -8,6 +10,7 @@ flowchart TD
     BUS --> REG12["Стабілізатор 12 В"]
     BUS --> REG5["Понижувач 5 В"]
     REG12 --> MDD["MDD3A"]
+    REG12 --> D4184["D4184 і LED 12 В"]
     MDD -->|"Канал 1 · два проводи"| M1["BK370 №1"]
     MDD -->|"Канал 2 · два проводи"| M2["BK370 №2"]
     REG5 --> ESP["ESP32-S3 N16R8"]
@@ -19,18 +22,19 @@ flowchart TD
     ESP ---|"8/9 · I²C"| SH
     ESP -->|"21 → A1"| TXS
     TXS -->|"B1 → сигнал"| SERVO
-    ESP -->|"16/17 через резистори"| LED["RGB LED · R/G"]
+    ESP -->|"GPIO16 · PWM"| D4184
+    ESP -->|"GPIO17 через резистор"| LED["Зелений LED · опційно"]
     BAT -->|"P−"| GND["Спільний GND · усі мінуси після BMS"]
 ```
 
 | Звідки | Куди |
 |---|---|
-| ESP32 1 / 2 | MDD3A DIR1 / PWM1 |
-| ESP32 42 / 41 | MDD3A DIR2 / PWM2 |
+| ESP32 1 / 2 | MDD3A сигнальні M1A / M1B |
+| ESP32 42 / 41 | MDD3A сигнальні M2A / M2B |
 | MDD3A, вихід каналу 1 | Два силові проводи двигуна 1 |
 | MDD3A, вихід каналу 2 | Два силові проводи двигуна 2 |
-| Енкодер 1 A/B | ESP32 4/5 |
-| Енкодер 2 A/B | ESP32 6/7 |
+| Енкодер 1 C1/C2 (A/B) | ESP32 4/5 |
+| Енкодер 2 C1/C2 (A/B) | ESP32 6/7 |
 | Енкодери VCC/GND | Підтверджена напруга живлення енкодера / GND. Якщо A/B працюють на 5 В, потрібне узгодження до 3,3 В |
 | ESP32 8 / 9 | INA226 SDA / SCL, підтяжки до 3V3 |
 | ESP32 3V3 / GND | INA226 VCC / GND. ALERT вільний |
@@ -38,7 +42,10 @@ flowchart TD
 | ESP32 21 | A1 TXS0108E |
 | TXS0108E B1 | Жовтий провід серво |
 | Понижувач OUT+ 5 В | ESP32 5V, VB TXS0108E, червоний провід серво |
-| ESP32 16 / 17 | R / G RGB LED, кожен через свій резистор |
+| ESP32 16 | PWM D4184 після підтвердження, що вхід працює від 3,3 В |
+| ESP32 17 | Опційний зелений LED через резистор |
+| Вихід 12 В + / GND | D4184 + / − відповідно. GND сигналу D4184 до GND ESP32 |
+| LED + / LED − | +12 В / LOAD відповідно, якщо LOAD на цій платі комутує мінус |
 | BMS P− | IN− обох перетворювачів, OUT− неізольованих перетворювачів, силовий і сигнальний GND MDD3A, GND ESP32, INA226, TXS0108E, енкодерів, коричневий провід серво і спільний катод RGB |
 | 12 В OUT+ | Плюс силового входу MDD3A |
 
@@ -48,4 +55,8 @@ flowchart TD
 
 **Струм і сигнали.** У BK370 12 В вказано до 16 А при блокуванні, у MDD3A — 3 А тривало та 5 А піково на канал. До силового запуску перевірте пусковий струм і обмеження струму кожного каналу. INA226 бачить суму струмів. Звірте розпінування енкодерів за маркуванням або виміром конкретного екземпляра. [BK370](https://www.airsoftmotor.com/micro-dc-reduction-motor/circular-reduction-motor/gm25-bk370-hall-encoder-dc-gear-motor.html) · [MDD3A](https://www.cytron.io/cytron/p-3amp-4v-16v-dc-motor-driver-2-channels)
 
+Сигнальні M1A/M1B та M2A/M2B — нижній ряд на повернутому фото. Силові клеми з такими самими назвами — верхній ряд. [Таблиця Cytron](https://www.cytron.io/tutorial/getting-started-mdd3a-makerdrive-motor-driver-using-arduino)
+
 Контакти 10, 11 і 12 зарезервовані для INMP441.
+
+Фото клем та роз’єму звірені з [Cytron](https://www.cytron.io/tutorial/getting-started-mdd3a-makerdrive-motor-driver-using-arduino) і [CHIHAI](https://www.airsoftmotor.com/Content/uploads/2023547745/20231117163921689046fb2c7d438c8dc1790eb535b5e6.jpeg). Фото INA226, TXS0108E, D4184 та ESP32 походять із матеріалів користувача.

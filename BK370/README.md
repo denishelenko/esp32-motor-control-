@@ -1,6 +1,6 @@
 # BK370 · ESP32-S3
 
-На кожній каретці два GM25-BK370 12 В (1:9,3), MDD3A, окремі енкодери A/B, INA226, серво й RGB LED.
+На кожній каретці два GM25-BK370 12 В (1:9,3), MDD3A, окремі енкодери A/B, INA226, серво й 12 В LED через D4184.
 
 | PlatformIO | Arduino IDE | Призначення |
 |---|---|---|
@@ -8,7 +8,7 @@
 | main | BK370_Main | Каретка 1 із сайтом та ESP-NOW |
 | remote | BK370_Remote | Каретка 2 з ESP-NOW |
 
-[Схема підключень](WIRING.md) · [Логіка та обмеження](ARCHITECTURE.md)
+[Схема з фото модулів](WIRING.md) · [Логіка та обмеження](ARCHITECTURE.md)
 
 **PlatformIO.** Відкрийте папку BK370 і виберіть профіль. Для Arduino IDE встановіть Arduino ESP32 3.3.12, ArduinoJson 7.4.3 і WebSockets 2.7.2. Скопіюйте library.properties і папку src у бібліотеку libraries/BK370Carriage в Arduino Sketchbook. Відкрийте скетч відповідної ролі. Плата ESP32S3 Dev Module, Flash 16 MB, QIO 80 MHz, OPI PSRAM.
 
