@@ -174,8 +174,8 @@ void handleUiCommand(const uint8_t *payload, size_t length) {
       startProgram(i);
     });
   } else if (!strcmp(type, "servo")) {
-    const uint8_t angle = doc["angle"] | SERVO_DEFAULT_ANGLE;
-    const bool enabled = doc["enabled"] | true;
+    const int angle = doc["angle"] | int(SERVO_DEFAULT_ANGLE);
+    const bool enabled = (doc["enabled"] | true) && angle != 0 && angle != 180;
     if (enabled && angle != 45 && angle != 90) return;
     applyToSelected(selected, [&](uint8_t i) {
       CarriageState &c = carriages[i];
@@ -220,6 +220,8 @@ void setup() {
   if (!controllerSession) controllerSession = 1;
   pinMode(MOTOR_IN1_PIN, OUTPUT); pinMode(MOTOR_IN2_PIN, OUTPUT);
   digitalWrite(MOTOR_IN1_PIN, LOW); digitalWrite(MOTOR_IN2_PIN, LOW);
+  pinMode(MOSFET_PIN, OUTPUT);
+  digitalWrite(MOSFET_PIN, LOW);
   pinMode(LIGHT_RED_PIN, OUTPUT); pinMode(LIGHT_GREEN_PIN, OUTPUT);
   pinMode(MOTOR_PWM_PIN, OUTPUT);
   digitalWrite(MOTOR_PWM_PIN, LOW);
@@ -271,8 +273,8 @@ void loop() {
   }
   updateCarriage(0); updateCarriage(1);
   updateLocalMotor();
-  updateLights(millis());
   writeLocalServo(carriages[0].servoPosition);
+  updateLights(millis());
   const uint32_t now = millis();
   if (now - lastCommandSentAt >= COMMAND_INTERVAL_MS) {
     lastCommandSentAt = now;

@@ -80,6 +80,8 @@ void setup() {
   pinMode(MOTOR_IN2_PIN, OUTPUT);
   digitalWrite(MOTOR_IN1_PIN, LOW);
   digitalWrite(MOTOR_IN2_PIN, LOW);
+  pinMode(MOSFET_PIN, OUTPUT);
+  digitalWrite(MOSFET_PIN, LOW);
   pinMode(LIGHT_RED_PIN, OUTPUT);
   pinMode(LIGHT_GREEN_PIN, OUTPUT);
   pinMode(MOTOR_PWM_PIN, OUTPUT);

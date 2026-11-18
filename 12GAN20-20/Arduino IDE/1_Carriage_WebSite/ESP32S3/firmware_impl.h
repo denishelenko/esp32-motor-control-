@@ -67,6 +67,24 @@ const char *modeName() {
 
 MotorOutput localMotor;
 
+static bool servoStrobeActive = false;
+static uint32_t servoStrobeStartedAt = 0;
+
+static void setServoStrobe(uint8_t commandAngle) {
+  const bool active = commandAngle > 0 && commandAngle < 180;
+  if (active == servoStrobeActive) return;
+  servoStrobeActive = active;
+  servoStrobeStartedAt = millis();
+  digitalWrite(MOSFET_PIN, active ? HIGH : LOW);
+}
+
+static void updateServoStrobe(uint32_t now) {
+  if (servoStrobeActive) {
+    const bool on = ((now - servoStrobeStartedAt) / LIGHT_STROBE_HALF_PERIOD_MS) % 2 == 0;
+    digitalWrite(MOSFET_PIN, on ? HIGH : LOW);
+  }
+}
+
 void writeLights(bool redEnabled) {
   if (redOutputOn != redEnabled) {
     redOutputOn = redEnabled;
@@ -110,7 +128,10 @@ void writeServoPosition(uint8_t physicalAngle) {
   physicalAngle = constrain(physicalAngle, SERVO_CLOSED_ANGLE, SERVO_PHYSICAL_MAX_ANGLE);
   servoCurrentAngle = physicalAngle;
   const uint8_t commandAngle = physicalAngle * SERVO_COMMAND_PER_PHYSICAL_DEGREE;
-  if (!servoWriteAngle(commandAngle)) {
+  if (servoWriteAngle(commandAngle)) {
+    setServoStrobe(commandAngle);
+  } else {
+    setServoStrobe(0);
     servoCycleEnabled = false;
     servoDetach();
     digitalWrite(SERVO_SIGNAL_PIN, LOW);
@@ -408,7 +429,8 @@ void handleWs(uint8_t client, WStype_t type, uint8_t *payload, size_t length) {
   }
   if (!strcmp(t, "servo")) {
     const bool enabled = d["enabled"] | true;
-    if (!enabled) {
+    const int angle = d["angle"] | int(SERVO_DEFAULT_OPEN_ANGLE);
+    if (!enabled || angle == 0 || angle == 180) {
       stopServoCycle();
     } else {
       const uint8_t requestedAngle = constrain(d["angle"] | SERVO_DEFAULT_OPEN_ANGLE,
@@ -446,10 +468,12 @@ void handleWs(uint8_t client, WStype_t type, uint8_t *payload, size_t length) {
 
 void setup() {
   Serial.begin(SERIAL_BAUD); randomSeed(micros());
+  pinMode(MOSFET_PIN, OUTPUT);
+  digitalWrite(MOSFET_PIN, LOW);
   pinMode(LIGHT_RED_PIN, OUTPUT); pinMode(LIGHT_GREEN_PIN, OUTPUT);
   digitalWrite(LIGHT_RED_PIN, LOW); digitalWrite(LIGHT_GREEN_PIN, HIGH);
   printBootInfo();
-  Serial.println("[START] Standalone: motor + servo + RGB status (green idle / red strobe while moving)");
+  Serial.println("[START] Standalone: motor + servo + status lights (green idle / red strobe during motion / MOSFET follows servo)");
   motorHardwareReady = localMotor.begin();
   if (!motorHardwareReady) Serial.println("[ERROR] Motor PWM init failed; motion disabled");
   digitalWrite(SERVO_SIGNAL_PIN, LOW); pinMode(SERVO_SIGNAL_PIN, OUTPUT);
@@ -478,6 +502,7 @@ void loop() {
   localMotor.tick(now);
   updateLight(now);
   updateServoCycle();
+  updateServoStrobe(millis());
   if (now - lastBroadcastAt >= UI_BROADCAST_INTERVAL_MS) broadcastState();
   if (now - lastSerialHeartbeatAt >= 3000) {
     lastSerialHeartbeatAt = now;

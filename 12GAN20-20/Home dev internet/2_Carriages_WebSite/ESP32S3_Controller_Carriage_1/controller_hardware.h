@@ -3,6 +3,24 @@
 
 // ESP32-S3 motor, servo and indicator outputs.
 
+static bool servoStrobeActive = false;
+static uint32_t servoStrobeStartedAt = 0;
+
+static void setServoStrobe(uint8_t commandAngle) {
+  const bool active = commandAngle > 0 && commandAngle < 180;
+  if (active == servoStrobeActive) return;
+  servoStrobeActive = active;
+  servoStrobeStartedAt = millis();
+  digitalWrite(MOSFET_PIN, active ? HIGH : LOW);
+}
+
+static void updateServoStrobe(uint32_t now) {
+  if (servoStrobeActive) {
+    const bool on = ((now - servoStrobeStartedAt) / LIGHT_BLINK_HALF_PERIOD_MS) % 2 == 0;
+    digitalWrite(MOSFET_PIN, on ? HIGH : LOW);
+  }
+}
+
 void writeLocalMotor(int16_t pwm) {
   pwm = constrain(pwm, -int16_t(PWM_MAX), int16_t(PWM_MAX));
   diagnosticMotor(pwm);
@@ -25,6 +43,7 @@ void writeLights(bool redEnabled) {
 }
 
 void updateLights(uint32_t now) {
+  updateServoStrobe(millis());
   if (localAppliedPwm == 0) {
     lightStrobeActive = false;
     writeLights(false);
@@ -74,5 +93,6 @@ void writeLocalServo(uint8_t physicalAngle) {
       (uint32_t(SERVO_MAX_PULSE_US - SERVO_MIN_PULSE_US) * commandAngle) / 180;
   const uint32_t duty = (uint64_t(pulseUs) * SERVO_FREQUENCY_HZ * 16384ULL + 500000ULL) / 1000000ULL;
   if (!diagnosticServo(physicalAngle, pulseUs)) return;
-  ledcWrite(SERVO_SIGNAL_PIN, duty);
+  const bool written = ledcWrite(SERVO_SIGNAL_PIN, duty);
+  setServoStrobe(written ? commandAngle : 0);
 }
