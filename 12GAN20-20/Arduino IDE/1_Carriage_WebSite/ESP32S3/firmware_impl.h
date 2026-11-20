@@ -52,7 +52,7 @@ bool motorHardwareReady = false;
 bool networkReady = false;
 int16_t motionOwner = -1;
 uint32_t ownerSeenAt = 0;
-void stopAll(bool keepServo = false);
+void stopAll();
 
 constexpr float limitM() { return TRACK_LENGTH_M * 0.5f - SAFE_MARGIN_M; }
 const char *modeName() {
@@ -257,11 +257,11 @@ void broadcastState() {
   String message = stateJson();
   wsServer.broadcastTXT(message);
 }
-void stopAll(bool keepServo) {
+void stopAll() {
   motionOwner = -1;
   mode = Mode::Idle; activeProgram = 0; programWaiting = false; calibrationStopAt = 0; targetM = positionM;
   setDrive("stop", 0);
-  if (!keepServo) stopServoCycle();
+  stopServoCycle();
   broadcastState();
 }
 
@@ -394,7 +394,7 @@ void handleWs(uint8_t client, WStype_t type, uint8_t *payload, size_t length) {
     // A stop command never depends on a speed field.
     if (strcmp(t, "stop") && !(strcmp(t, "jog") == 0 && strcmp(d["direction"] | "", "stop") == 0)) return;
   }
-  if (!strcmp(t, "stop")) { stopAll(true); return; }
+  if (!strcmp(t, "stop")) { stopAll(); return; }
   if (!strcmp(t, "zero")) { stopAll(); positionM = targetM = 0; broadcastState(); return; }
   if (!strcmp(t, "target")) {
     if (!motorOnline() || !d["position"].is<float>() || !isfinite(d["position"].as<float>())) return;

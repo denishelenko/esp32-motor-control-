@@ -19,7 +19,7 @@ constexpr uint16_t WEBSOCKET_PORT = 81;
 constexpr char PINOUT_SERIAL_TEXT[] = "[PINS] 1=AIN1+BIN1, 2=AIN2+BIN2, 42=PWMA+PWMB, 21=SERVO, 47=MOSFET PWM, 41=RED, 40=GREEN";
 constexpr uint8_t MOTOR_IN1_PIN = 1;       // TB6612FNG AIN1 and BIN1
 constexpr uint8_t MOTOR_IN2_PIN = 2;       // TB6612FNG AIN2 and BIN2
-constexpr bool MOTOR_DIRECTION_REVERSED = false;
+constexpr bool MOTOR_DIRECTION_REVERSED = true;
 constexpr uint8_t MOTOR_PWM_PIN = 42;     // GPIO42 -> PWMA and PWMB
 constexpr uint8_t SERVO_SIGNAL_PIN = 21;   // TXS0108E A1; B1 to servo signal
 constexpr uint8_t MOSFET_PIN = 47;         // Servo-controlled strobe on the MOSFET module
@@ -28,11 +28,11 @@ constexpr uint8_t LIGHT_GREEN_PIN = 40;   // Green RGB channel through resistor
 
 // SERVOMY SDS2601-26G: power red from the 5 V regulator and brown from common GND.
 // UI angles are the real, physical angles of this particular mechanism.
-// Its electronics need a command twice as large: command 90° = physical 45°
-// and command 180° = physical 90°.
+// The installed servo uses a direct scale: command 45° = physical 45°
+// and command 90° = physical 90°.
 constexpr uint8_t SERVO_CLOSED_ANGLE = 0;
 constexpr uint8_t SERVO_PHYSICAL_MAX_ANGLE = 90;
-constexpr uint8_t SERVO_COMMAND_PER_PHYSICAL_DEGREE = 2;
+constexpr uint8_t SERVO_COMMAND_PER_PHYSICAL_DEGREE = 1;
 constexpr uint8_t SERVO_DEFAULT_OPEN_ANGLE = 45;
 constexpr uint16_t SERVO_MIN_PULSE_US = 520;
 constexpr uint16_t SERVO_MAX_PULSE_US = 2520;

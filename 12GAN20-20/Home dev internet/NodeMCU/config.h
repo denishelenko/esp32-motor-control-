@@ -65,11 +65,11 @@ constexpr uint8_t LIGHT_GREEN_PIN = 13; // D7
 // brown to the same GND as ESP8266 and L298N. ESP8266 uses Servo.h, matching
 // the known working standalone myServo.write(angle) test.
 // UI angles are the real, physical angles of this particular mechanism.
-// Its electronics need a command twice as large: command 90° = physical 45°
-// and command 180° = physical 90°.
+// The installed servo uses a direct scale: command 45° = physical 45°
+// and command 90° = physical 90°.
 constexpr uint8_t SERVO_CLOSED_ANGLE = 0;
 constexpr uint8_t SERVO_PHYSICAL_MAX_ANGLE = 90;
-constexpr uint8_t SERVO_COMMAND_PER_PHYSICAL_DEGREE = 2;
+constexpr uint8_t SERVO_COMMAND_PER_PHYSICAL_DEGREE = 1;
 constexpr uint8_t SERVO_DEFAULT_OPEN_ANGLE = 45;
 constexpr uint16_t SERVO_MIN_PULSE_US = 520;
 constexpr uint16_t SERVO_MAX_PULSE_US = 2520;
@@ -142,6 +142,7 @@ constexpr uint32_t UI_BROADCAST_INTERVAL_MS = 50;
 constexpr uint32_t UI_COMMAND_LEASE_MS = 2000;
 constexpr uint32_t REVERSAL_PAUSE_MS = 50;
 constexpr uint32_t SERIAL_BAUD = 115200;
+constexpr bool MOTOR_DIRECTION_REVERSED = true;
 constexpr uint32_t RAMP_INTERVAL_MS = 10;
 constexpr int16_t RAMP_STEP = 24;
 

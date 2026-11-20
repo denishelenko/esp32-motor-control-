@@ -88,7 +88,7 @@ void updateLocalMotor() {
 }
 
 void writeLocalServo(uint8_t physicalAngle) {
-  const uint8_t commandAngle = constrain(uint16_t(physicalAngle) * 2, uint16_t(0), uint16_t(180));
+  const uint8_t commandAngle = min(physicalAngle, uint8_t(180));
   const uint16_t pulseUs = SERVO_MIN_PULSE_US +
       (uint32_t(SERVO_MAX_PULSE_US - SERVO_MIN_PULSE_US) * commandAngle) / 180;
   const uint32_t duty = (uint64_t(pulseUs) * SERVO_FREQUENCY_HZ * 16384ULL + 500000ULL) / 1000000ULL;

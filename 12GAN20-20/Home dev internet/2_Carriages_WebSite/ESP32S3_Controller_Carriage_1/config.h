@@ -21,7 +21,7 @@ constexpr uint16_t WEBSOCKET_PORT = 81;
 // One motor per bridge. Both bridges receive the same direction and PWM.
 constexpr uint8_t MOTOR_IN1_PIN = 1;      // GPIO1 -> TB6612FNG AIN1 and BIN1
 constexpr uint8_t MOTOR_IN2_PIN = 2;      // GPIO2 -> TB6612FNG AIN2 and BIN2
-constexpr bool MOTOR_DIRECTION_REVERSED = false;
+constexpr bool MOTOR_DIRECTION_REVERSED = true;
 constexpr uint8_t MOTOR_PWM_PIN = 42;     // GPIO42 -> PWMA and PWMB
 constexpr uint8_t SERVO_SIGNAL_PIN = 21;  // GPIO21 -> TXS0108E A1; B1 -> servo signal.
 constexpr uint8_t MOSFET_PIN = 47;         // Servo-controlled strobe on the MOSFET module

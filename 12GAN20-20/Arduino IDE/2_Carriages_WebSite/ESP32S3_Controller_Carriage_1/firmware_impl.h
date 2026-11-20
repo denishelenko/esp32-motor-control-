@@ -203,7 +203,7 @@ void handleUiCommand(const uint8_t *payload, size_t length) {
       }
     });
   } else if (!strcmp(type, "stop")) {
-    applyToSelected(selected, [&](uint8_t i) { stopCarriage(i, true); });
+    applyToSelected(selected, [&](uint8_t i) { stopCarriage(i); });
   } else if (!strcmp(type, "zero")) {
     applyToSelected(selected, [&](uint8_t i) { carriages[i].position = 0; carriages[i].target = 0; stopCarriage(i); });
   }

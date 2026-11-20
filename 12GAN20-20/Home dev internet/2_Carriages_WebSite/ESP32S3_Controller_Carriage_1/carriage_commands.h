@@ -27,5 +27,5 @@ public:
     return true;
   }
   bool moveDistanceCm(Direction direction, float cm) { return moveDistanceM(direction, cm / 100.0f); }
-  void stop() { if (index_ < 2) stopCarriage(index_, true); }
+  void stop() { if (index_ < 2) stopCarriage(index_); }
 };
