@@ -5,9 +5,20 @@
 
 static bool servoStrobeActive = false;
 static uint32_t servoStrobeStartedAt = 0;
+static uint32_t servoMotionStartedAt = 0, servoMotionMs = 0;
 
-static void setServoStrobe(uint8_t commandAngle) {
-  const bool active = commandAngle > 0 && commandAngle < 180;
+static void setServoStrobe(uint8_t commandAngle, bool written = true) {
+  static uint8_t previousAngle = 0;
+  if (!written) {
+    servoMotionMs = 0;
+  } else if (commandAngle != previousAngle) {
+    const uint32_t angleDelta = abs(int(commandAngle) - int(previousAngle));
+    servoMotionStartedAt = millis();
+    servoMotionMs = (angleDelta * SERVO_TRAVEL_90_MS + 89) / 90;
+    previousAngle = commandAngle;
+  }
+
+  const bool active = written && commandAngle > 0 && commandAngle < 180;
   if (active == servoStrobeActive) return;
   servoStrobeActive = active;
   servoStrobeStartedAt = millis();
@@ -28,25 +39,26 @@ void writeServoAngle(uint8_t physicalAngle) {
   const uint32_t duty = (uint64_t(pulseUs) * SERVO_FREQUENCY_HZ * 16384ULL + 500000ULL) / 1000000ULL;
   if (!diagnosticServo(physicalAngle, pulseUs)) return;
   const bool written = ledcWrite(SERVO_SIGNAL_PIN, duty);
-  setServoStrobe(written ? commandAngle : 0);
+  setServoStrobe(commandAngle, written);
 }
 
 void writeLights(bool redEnabled) {
   if (redOutputOn != redEnabled) {
     redOutputOn = redEnabled;
-    diagnosticLed(LIGHT_RED_PIN, redEnabled, lightStrobeActive ? "MOTOR_STROBE" : "MOTOR_STOP");
+    diagnosticLed(LIGHT_RED_PIN, redEnabled, lightStrobeActive ? "MOTION_STROBE" : "IDLE");
   }
 }
 
 void updateLights(uint32_t now) {
-  updateServoStrobe(millis());
-  if (appliedPwm == 0) {
+  updateServoStrobe(now);
+  if (servoMotionMs && now - servoMotionStartedAt >= servoMotionMs) servoMotionMs = 0;
+  const bool moving = appliedPwm != 0 || servoMotionMs != 0;
+  diagnosticLed(LIGHT_GREEN_PIN, !moving, moving ? "MOTION" : "IDLE");
+  if (!moving) {
     lightStrobeActive = false;
     writeLights(false);
-    diagnosticLed(LIGHT_GREEN_PIN, !(actionBlinkUntil && int32_t(now - actionBlinkUntil) < 0), actionBlinkUntil && int32_t(now - actionBlinkUntil) < 0 ? actionBlinkReason : "IDLE");
     return;
   }
-  diagnosticLed(LIGHT_GREEN_PIN, actionBlinkUntil && int32_t(now - actionBlinkUntil) < 0, actionBlinkUntil && int32_t(now - actionBlinkUntil) < 0 ? actionBlinkReason : "MOTOR_ACTIVE");
   if (!lightStrobeActive) {
     lightStrobeActive = true;
     lastLightToggleAt = now;

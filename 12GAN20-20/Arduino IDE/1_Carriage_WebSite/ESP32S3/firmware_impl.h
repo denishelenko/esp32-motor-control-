@@ -69,9 +69,20 @@ MotorOutput localMotor;
 
 static bool servoStrobeActive = false;
 static uint32_t servoStrobeStartedAt = 0;
+static uint32_t servoMotionStartedAt = 0, servoMotionMs = 0;
 
-static void setServoStrobe(uint8_t commandAngle) {
-  const bool active = commandAngle > 0 && commandAngle < 180;
+static void setServoStrobe(uint8_t commandAngle, bool written = true) {
+  static uint8_t previousAngle = 0;
+  if (!written) {
+    servoMotionMs = 0;
+  } else if (commandAngle != previousAngle) {
+    const uint32_t angleDelta = abs(int(commandAngle) - int(previousAngle));
+    servoMotionStartedAt = millis();
+    servoMotionMs = (angleDelta * SERVO_TRAVEL_90_MS + 89) / 90;
+    previousAngle = commandAngle;
+  }
+
+  const bool active = written && commandAngle > 0 && commandAngle < 180;
   if (active == servoStrobeActive) return;
   servoStrobeActive = active;
   servoStrobeStartedAt = millis();
@@ -93,8 +104,9 @@ void writeLights(bool redEnabled) {
 }
 
 void updateLight(uint32_t now) {
-  const bool motorIsMoving = localMotor.applied() != 0;
-  if (!motorIsMoving) {
+  if (servoMotionMs && now - servoMotionStartedAt >= servoMotionMs) servoMotionMs = 0;
+  const bool moving = localMotor.applied() != 0 || servoMotionMs != 0;
+  if (!moving) {
     lightStrobeActive = false;
     writeLights(false);
     digitalWrite(LIGHT_GREEN_PIN, HIGH);
@@ -131,7 +143,7 @@ void writeServoPosition(uint8_t physicalAngle) {
   if (servoWriteAngle(commandAngle)) {
     setServoStrobe(commandAngle);
   } else {
-    setServoStrobe(0);
+    setServoStrobe(0, false);
     servoCycleEnabled = false;
     servoDetach();
     digitalWrite(SERVO_SIGNAL_PIN, LOW);

@@ -32,6 +32,12 @@ table{width:100%;border-collapse:collapse;font-size:.87rem}td,th{text-align:left
 <p id="run" class="message">Вибери час і напрямок.</p>
 </section>
 <section>
+<h2>Перевірка підсвітки</h2>
+<div class="row"><button data-light="red" disabled>Червоний</button><button data-light="green" disabled>Зелений</button></div>
+<button class="wide" data-light="mosfet" disabled>Строб MOSFET 12 В</button>
+<p id="lightState" class="message" role="status">Кожен тест блимає 3 секунди.</p>
+</section>
+<section>
 <h2>Центр троса</h2>
 <p>Вистав каретку на фізичній середині троса короткими рухами, потім познач центр.</p>
 <button id="center" class="wide" disabled>Позначити центр (0 м)</button>
@@ -50,6 +56,8 @@ table{width:100%;border-collapse:collapse;font-size:.87rem}td,th{text-align:left
 </main><script>
 "use strict";
 const byId = id => document.getElementById(id);
+const lightButtons = document.querySelectorAll("[data-light]");
+const lightNames = {red: "Червоний LED", green: "Зелений LED", mosfet: "Строб 12 В"};
 const names = {
   idle: "Вибери час і напрямок.",
   queued: "Підготовка до запуску…",
@@ -74,6 +82,7 @@ function controls() {
   const enabled = online && !busy && current && !isMoving(current);
   byId("left").disabled = byId("right").disabled = !enabled || !current?.ready;
   byId("center").disabled = !enabled;
+  for (const button of lightButtons) button.disabled = !enabled;
   byId("record").disabled = !enabled || current?.phase !== "done" ||
     samples.some(sample => sample.id === current.id);
 }
@@ -85,6 +94,8 @@ function render(state) {
   byId("run").textContent = (names[state.phase] || "") + (state.elapsedMs ?
     " " + directionName(state.direction) + " · " + seconds(state.elapsedMs) + " · " + state.speed + "%." : "");
   byId("centerState").textContent = state.center ? "Нульову позначку збережено до перезапуску ESP32." : "Позначку центру ще не встановлено.";
+  byId("lightState").textContent = lightNames[state.lightTest] ?
+    lightNames[state.lightTest] + " блимає…" : "Кожен тест блимає 3 секунди.";
   controls();
 }
 function showSamples() {
@@ -152,6 +163,8 @@ byId("left").onclick = () => move("left");
 byId("right").onclick = () => move("right");
 byId("stop").onclick = () => { leaseId = 0; action("/api/stop", {}); };
 byId("center").onclick = () => action("/api/center", {});
+for (const button of lightButtons) button.onclick = () =>
+  action("/api/light-test", {output:button.dataset.light, stopEpoch:current.stopEpoch});
 byId("record").onclick = () => {
   const input = byId("distance");
   if (!input.value || !input.reportValidity() || current?.phase !== "done" || !current.elapsedMs ||

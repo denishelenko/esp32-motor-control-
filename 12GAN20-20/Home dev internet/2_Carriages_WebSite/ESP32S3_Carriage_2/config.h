@@ -21,8 +21,8 @@ constexpr bool MOTOR_DIRECTION_REVERSED = true;
 constexpr uint8_t MOTOR_PWM_PIN = 42;     // GPIO42 -> PWMA and PWMB
 constexpr uint8_t SERVO_SIGNAL_PIN = 21;  // GPIO21 -> TXS0108E A1; B1 -> servo signal.
 constexpr uint8_t MOSFET_PIN = 47;         // Servo-controlled strobe on the MOSFET module
-constexpr uint8_t LIGHT_RED_PIN = 41;      // Red RGB channel through resistor
-constexpr uint8_t LIGHT_GREEN_PIN = 40;   // Green RGB channel through resistor
+constexpr uint8_t LIGHT_RED_PIN = 40;      // Red RGB channel through resistor
+constexpr uint8_t LIGHT_GREEN_PIN = 41;   // Green RGB channel through resistor
 static_assert(MOTOR_PWM_PIN != MOTOR_IN1_PIN && MOTOR_PWM_PIN != MOTOR_IN2_PIN &&
               SERVO_SIGNAL_PIN != MOTOR_PWM_PIN && SERVO_SIGNAL_PIN != MOTOR_IN1_PIN &&
               SERVO_SIGNAL_PIN != MOTOR_IN2_PIN &&
@@ -34,6 +34,7 @@ static_assert(MOTOR_PWM_PIN != MOTOR_IN1_PIN && MOTOR_PWM_PIN != MOTOR_IN2_PIN &
               MOSFET_PIN != MOTOR_PWM_PIN && MOSFET_PIN != SERVO_SIGNAL_PIN &&
               MOSFET_PIN != LIGHT_RED_PIN && MOSFET_PIN != LIGHT_GREEN_PIN,
               "ESP32-S3 output pins must be distinct");
+constexpr uint16_t SERVO_TRAVEL_90_MS = 350;  // Estimated travel at 90 degrees.
 constexpr uint8_t SERVO_CLOSED_ANGLE = 0;
 constexpr uint8_t SERVO_PHYSICAL_MAX_ANGLE = 90;
 constexpr uint8_t SERVO_COMMAND_PER_PHYSICAL_DEGREE = 1;

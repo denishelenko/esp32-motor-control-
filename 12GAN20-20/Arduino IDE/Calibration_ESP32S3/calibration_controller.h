@@ -13,11 +13,14 @@ namespace calibration {
 constexpr char Ssid[] = "Motor-Calibrate";
 constexpr char Password[] = "motor8266";
 constexpr int In1 = 1, In2 = 2, Pwm = 42;
+constexpr int Red = 40, Green = 41, Mosfet = 47;
+constexpr uint32_t LightTestMs = 3000, BlinkHalfPeriodMs = 125;
 constexpr bool ReverseDirection = true;
 constexpr uint32_t MotorPeriodMs = 10, LeaseMs = 1000, RestMs = 100;
 constexpr int RampStep = 24, MaxDuty = 1023;
 
 enum class Phase : uint8_t { Idle, Queued, Running, Done, Stopped, LinkLost, Fault };
+enum class LightTest : uint8_t { None, Red, Green, Mosfet };
 struct Run {
   Phase phase = Phase::Idle;
   uint32_t id = 0, duration = 0, startedAt = 0, elapsed = 0, leaseAt = 0;
@@ -31,8 +34,30 @@ Run run;
 uint32_t stoppedAt = 0, stopEpoch = 0;
 bool centerMarked = false;
 bool hardwareReady = false;
+LightTest lightTest = LightTest::None;
+uint32_t lightTestStartedAt = 0;
 
 bool active(Phase phase) { return phase == Phase::Queued || phase == Phase::Running; }
+
+const char *lightTestName(LightTest test) {
+  switch (test) {
+    case LightTest::Red: return "red";
+    case LightTest::Green: return "green";
+    case LightTest::Mosfet: return "mosfet";
+    default: return "off";
+  }
+}
+
+void updateLightsLocked(uint32_t now) {
+  const uint32_t elapsed = now - lightTestStartedAt;
+  if (elapsed >= LightTestMs) lightTest = LightTest::None;
+  const bool testing = lightTest != LightTest::None;
+  const bool running = run.phase == Phase::Running;
+  const bool blink = ((testing ? elapsed : now - run.startedAt) / BlinkHalfPeriodMs) % 2 == 0;
+  digitalWrite(Red, (testing ? lightTest == LightTest::Red : running) && blink);
+  digitalWrite(Green, testing ? lightTest == LightTest::Green && blink : !running);
+  digitalWrite(Mosfet, lightTest == LightTest::Mosfet && blink);
+}
 
 const char *phaseName(Phase phase) {
   switch (phase) {
@@ -92,6 +117,7 @@ void serviceMotor(void *) {
         }
       }
     }
+    updateLightsLocked(millis());
     xSemaphoreGive(motorLock);
     vTaskDelayUntil(&next, pdMS_TO_TICKS(MotorPeriodMs));
   }
@@ -116,6 +142,7 @@ void reject(int code, const char *message) {
 
 void sendState() {
   Run snapshot;
+  LightTest test;
   bool center, ready;
   uint32_t epoch;
   xSemaphoreTake(motorLock, portMAX_DELAY);
@@ -124,16 +151,17 @@ void sendState() {
   center = centerMarked;
   ready = hardwareReady;
   epoch = stopEpoch;
+  test = lightTest;
   xSemaphoreGive(motorLock);
 
-  char body[270];
+  char body[300];
   snprintf(body, sizeof(body),
            "{\"phase\":\"%s\",\"id\":%lu,\"durationMs\":%lu,\"elapsedMs\":%lu,"
-           "\"direction\":%d,\"speed\":%d,\"center\":%s,\"ready\":%s,\"stopEpoch\":%lu}",
+           "\"direction\":%d,\"speed\":%d,\"center\":%s,\"ready\":%s,\"stopEpoch\":%lu,\"lightTest\":\"%s\"}",
            phaseName(snapshot.phase), static_cast<unsigned long>(snapshot.id),
            static_cast<unsigned long>(snapshot.duration), static_cast<unsigned long>(snapshot.elapsed),
            snapshot.direction, snapshot.speed, center ? "true" : "false", ready ? "true" : "false",
-           static_cast<unsigned long>(epoch));
+           static_cast<unsigned long>(epoch), lightTestName(test));
   server.sendHeader("Cache-Control", "no-store");
   server.send(200, "application/json", body);
 }
@@ -152,6 +180,8 @@ void start() {
   const uint32_t now = millis();
   const bool allowed = hardwareReady && !active(run.phase) && now - stoppedAt >= RestMs && epoch == stopEpoch;
   if (allowed) {
+    lightTest = LightTest::None;
+    updateLightsLocked(now);
     run = Run{};
     run.phase = Phase::Queued;
     run.id = id;
@@ -179,8 +209,33 @@ void requestStop() {
   xSemaphoreTake(motorLock, portMAX_DELAY);
   ++stopEpoch;
   if (active(run.phase)) run.stopRequested = true;
+  lightTest = LightTest::None;
+  updateLightsLocked(millis());
   xSemaphoreGive(motorLock);
   sendState();
+}
+
+void testLights() {
+  const String output = server.arg("output");
+  LightTest requested = LightTest::None;
+  if (output == "red") requested = LightTest::Red;
+  else if (output == "green") requested = LightTest::Green;
+  else if (output == "mosfet") requested = LightTest::Mosfet;
+  uint32_t epoch;
+  if (requested == LightTest::None || !number("stopEpoch", epoch)) {
+    reject(400, "Невідомий вихід підсвітки.");
+    return;
+  }
+  xSemaphoreTake(motorLock, portMAX_DELAY);
+  const bool allowed = !active(run.phase) && epoch == stopEpoch;
+  if (allowed) {
+    lightTest = requested;
+    lightTestStartedAt = millis();
+    updateLightsLocked(lightTestStartedAt);
+  }
+  xSemaphoreGive(motorLock);
+  if (allowed) sendState();
+  else reject(409, "Спочатку зупини каретку.");
 }
 
 void markCenter() {
@@ -194,16 +249,18 @@ void markCenter() {
 
 void begin() {
   Serial.begin(115200);
-  for (const int pin : {In1, In2, Pwm}) {
+  for (const int pin : {In1, In2, Pwm, Red, Green, Mosfet}) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
   }
+  digitalWrite(Green, HIGH);
   motorLock = xSemaphoreCreateMutex();
   if (!motorLock) return;
   hardwareReady = ledcAttachChannel(Pwm, 1000, 10, 0);
   if (hardwareReady && !ledcWrite(Pwm, 0)) stopLocked(Phase::Fault, millis());
   if (xTaskCreate(serviceMotor, "calibrationMotor", 3072, nullptr, 3, nullptr) != pdPASS) {
     stopLocked(Phase::Fault, millis());
+    return;
   }
   WiFi.mode(WIFI_AP);
   if (!WiFi.softAP(Ssid, Password)) {
@@ -216,6 +273,7 @@ void begin() {
   server.on("/api/heartbeat", HTTP_POST, heartbeat);
   server.on("/api/stop", HTTP_POST, requestStop);
   server.on("/api/center", HTTP_POST, markCenter);
+  server.on("/api/light-test", HTTP_POST, testLights);
   server.begin();
   Serial.println("Motor-Calibrate · http://192.168.4.1/");
 }

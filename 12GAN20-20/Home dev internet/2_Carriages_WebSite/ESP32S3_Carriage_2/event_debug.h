@@ -26,12 +26,6 @@ static void eventLog(const char *component, const char *action, const char *form
 #endif
 }
 
-static uint32_t actionBlinkUntil = 0;
-static const char *actionBlinkReason = "none";
-static void requestActionBlink(const char *reason) {
-  actionBlinkReason = reason;
-  actionBlinkUntil = millis() + 100;
-}
 static void diagnosticMotor(int16_t pwm) {
   static int16_t previous = 0;
   static uint32_t started = 0;
@@ -45,13 +39,10 @@ static void diagnosticMotor(int16_t pwm) {
       eventLog("MOTOR_GROUP", "DIRECTION_CHANGE", "direction=%s", direction > 0 ? "RIGHT" : "LEFT");
     lastDirection = direction;
     eventLog("MOTOR_GROUP", "START", "direction=%s", pwm > 0 ? "RIGHT" : "LEFT");
-    requestActionBlink("MOTOR_START");
   } else if (previous && !pwm) {
     eventLog("MOTOR_GROUP", "STOP", "duration=%lu ms", (unsigned long)(now - started));
-    requestActionBlink("MOTOR_STOP");
   } else if ((previous < 0) != (pwm < 0)) {
     eventLog("MOTOR_GROUP", "DIRECTION_CHANGE", "direction=%s", pwm > 0 ? "RIGHT" : "LEFT");
-    requestActionBlink("DIRECTION_CHANGE");
   }
   eventLog("MOTOR_GROUP", "PWM_CHANGE", "old=%d new=%d max=%u frequency=%u Hz RPM=unmeasured", previous, pwm, PWM_MAX, PWM_FREQUENCY_HZ);
   previous = pwm;
@@ -62,7 +53,6 @@ static bool diagnosticServo(uint8_t angle, uint32_t pulseUs) {
   uint32_t now = millis();
   eventLog("SERVO", angle ? "POSITION_COMMAND" : "CLOSE_COMMAND", "previous=%d target=%u deg pulse=%lu us feedback=none", previous, angle, (unsigned long)pulseUs);
   eventLog("SERVO", "COMMAND_ISSUED", "elapsed=%lu ms next=controlled by program", (unsigned long)(millis()-now));
-  if (previous >= 0) requestActionBlink(angle ? "SERVO_OPEN" : "SERVO_CLOSE");
   previous = angle;
   return true;
 }

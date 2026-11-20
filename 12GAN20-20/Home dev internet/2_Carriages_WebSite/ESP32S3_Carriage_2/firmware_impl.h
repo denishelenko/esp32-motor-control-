@@ -129,7 +129,7 @@ void loop() {
   receiveCommand();
   updateMotor();
   updateServo();
-  updateLights(now);
+  updateLights(millis());
   if (statusPending || now - lastStatusAt >= STATUS_INTERVAL_MS) {
     lastStatusAt = now;
     statusPending = false;
