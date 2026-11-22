@@ -136,10 +136,16 @@ class ServoOutput {
       log("SERVO", "PWM disabled");
     }
     enabled = attached_ = cycling_ = false;
+    travelMs_ = 0;
     angle = 0;
   }
+  void close(uint32_t now) {
+    if (attached_ && !write(0, now)) { off(); return; }
+    enabled = cycling_ = false;
+  }
+  bool moving(uint32_t now) const { return travelMs_ && now - travelAt_ < travelMs_; }
   bool hold(uint8_t degrees, uint32_t durationMs, uint32_t now) {
-    if (!write(degrees)) return false;
+    if (!write(degrees, now)) return false;
     cycling_ = false;
     holdMs_ = durationMs;
     changedAt_ = now;
@@ -148,7 +154,7 @@ class ServoOutput {
   }
   bool cycle(uint8_t degrees, uint32_t now) {
     if (degrees != 45 && degrees != 90) return false;
-    if (!write(0)) return false;
+    if (!write(enabled && angle ? degrees : 0, now)) return false;
     selected = degrees;
     cycling_ = true;
     changedAt_ = now;
@@ -156,6 +162,7 @@ class ServoOutput {
     return true;
   }
   void tick(uint32_t now) {
+    if (travelMs_ && now - travelAt_ >= travelMs_) travelMs_ = 0;
     if (!enabled) return;
     if (!cycling_) {
       if (holdMs_ && now - changedAt_ >= holdMs_) off();
@@ -163,24 +170,29 @@ class ServoOutput {
     }
     if (now - changedAt_ >= 2500) {
       const auto next = angle ? 0 : selected;
-      if (!write(next)) { off(); return; }
+      if (!write(next, now)) { off(); return; }
       changedAt_ = now;
       log("SERVO", "target=%u deg next=2500 ms", angle);
     }
   }
  private:
-  bool write(uint8_t degrees) {
-    if (degrees > 90) return false;
+  bool write(uint8_t degrees, uint32_t now) {
+    if (degrees > 180) return false;
     constexpr uint32_t Hz = 333;
     if (!attached_) attached_ = ledcAttachChannel(ServoPin, Hz, 14, 4);
     if (!attached_) return false;
-    const uint32_t us = 520 + (2000 * uint32_t(degrees)) / 90;
+    const uint32_t us = 520 + (2000 * uint32_t(degrees)) / 180;
     if (!ledcWrite(ServoPin, (uint64_t(us) * Hz * 16384 + 500000) / 1000000)) return false;
+    if (angle != degrees) {
+      travelAt_ = now;
+      travelMs_ = (abs(int(degrees) - int(angle)) * ServoTravel90Ms + 89) / 90;
+    }
     enabled = true;
     angle = degrees;
     return true;
   }
   bool attached_ = false, cycling_ = false;
   uint32_t changedAt_ = 0, holdMs_ = 0;
+  uint32_t travelAt_ = 0, travelMs_ = 0;
 };
 }

@@ -10,7 +10,7 @@
 #include "WebUi.h"
 
 namespace bk370 {
-constexpr uint32_t RadioMagic = 0x424b3701;
+constexpr uint32_t RadioMagic = 0x424b3702;
 constexpr uint32_t LinkTimeout = 600;
 struct Packet {
   uint32_t magic = RadioMagic, sender = 0, receiver = 0, sequence = 0;
@@ -18,6 +18,7 @@ struct Packet {
   Status status{};
   uint8_t statusPacket = 0, accepted = 0;
 };
+static_assert(sizeof(Packet) <= 250, "ESP-NOW packet exceeds the v1 payload limit");
 struct Frame { Packet packet; uint32_t receivedAt; int8_t rssi; };
 
 template<int Role>
@@ -50,7 +51,6 @@ class Firmware {
   }
 
   void tick() {
-    const uint32_t now = millis();
     if constexpr (Role != 2) {
       server_.handleClient();
       socket_.loop();
@@ -59,6 +59,7 @@ class Firmware {
         owner_ = NoOwner;
       }
     }
+    const uint32_t now = millis();
     if constexpr (Role != 0) receiveRadio(now);
     const bool online = remoteBoot_ && now - radioAt_ < LinkTimeout;
     if constexpr (Role == 2) {
@@ -75,10 +76,14 @@ class Firmware {
         }
         if (pending_.op != Op::Idle && pending_.op != Op::Abort && now - pendingAt_ >= 500) {
           notifyClient("Немає підтвердження від другої каретки");
-          if (linked_) local_.stop(now, "command acknowledgment timeout");
-          linked_ = false;
-          pending_ = Command{};
-          pending_.op = Op::Abort;
+          if (pending_.op != Op::LightTest) {
+            if (linked_) local_.stop(now, "command acknowledgment timeout");
+            linked_ = false;
+            pending_ = Command{};
+            pending_.op = Op::Abort;
+          } else {
+            pending_ = Command{};
+          }
           sequence_++;
         }
         if (now - sentAt_ >= 45) sendCommand(now);
@@ -86,7 +91,7 @@ class Firmware {
       local_.tick(now, true);
       if constexpr (Role == 1) {
         const auto localState = local_.status(now);
-        if (linked_ && (!localState.ready || !remoteState_.ready)) {
+        if (linked_ && (!localState.powered || !remoteState_.powered)) {
           stopBoth(now, "linked interlock");
           linked_ = false;
         }
@@ -187,7 +192,7 @@ class Firmware {
         if (p.receiver == boot_ && p.sequence == sequence_ && pending_.op != Op::Idle) {
           if (!p.accepted) {
             notifyClient("Р”СЂСѓРіР° РєР°СЂРµС‚РєР° РІС–РґС…РёР»РёР»Р° РєРѕРјР°РЅРґСѓ");
-            if (linked_) {
+            if (linked_ && pending_.op != Op::LightTest) {
               stopBoth(now, "remote rejected command");
               linked_ = false;
               continue;
@@ -237,7 +242,7 @@ class Firmware {
     }
     Command c;
     const auto current = selected == 1 ? local_.status(now) : remoteState_;
-    c.speed = constrain(d["speed"] | int(current.speed), 1, 100);
+    c.speed = constrain(d["speed"] | int(current.speed), 0, 100);
     const char *direction = d["direction"] | "";
     c.direction = !strcmp(direction, "right") ? 1 : !strcmp(direction, "left") ? -1 : 0;
     if (!strcmp(type, "stop")) c.op = Op::Stop;
@@ -255,7 +260,16 @@ class Firmware {
       const int angle = d["angle"] | 45;
       if (angle != 45 && angle != 90) return;
       c.value = (d["enabled"] | true) ? angle : 0;
-    } else if (!strcmp(type, "jog")) c.op = c.direction ? Op::Jog : Op::Stop;
+    } else if (!strcmp(type, "jog")) c.op = c.direction ? Op::Jog : Op::MotorStop;
+    else if (!strcmp(type, "brake")) c.op = Op::MotorStop;
+    else if (!strcmp(type, "light_test")) {
+      const char *output = d["output"] | "";
+      if (!strcmp(output, "red")) c.value = uint8_t(LightTest::Red);
+      else if (!strcmp(output, "green")) c.value = uint8_t(LightTest::Green);
+      else if (!strcmp(output, "mosfet")) c.value = uint8_t(LightTest::Strobe);
+      else return;
+      c.op = Op::LightTest;
+    }
     else if (!strcmp(type, "zero")) c.op = Op::Zero;
     else if (!strcmp(type, "battery_reset")) c.op = Op::Reset;
     else if (!strcmp(type, "timed_test")) {
@@ -266,20 +280,22 @@ class Firmware {
 
     if (c.op == Op::Stop && owner_ != client) { stopBoth(now, "stop from another client"); return; }
     if (c.op == Op::Timed && linked_) { stopBoth(now, "calibration"); linked_ = false; }
-    const bool local = selected == 1 || linked_;
-    const bool remote = selected == 2 || linked_;
+    const bool synchronized = linked_ && c.op != Op::LightTest;
+    const bool local = selected == 1 || synchronized;
+    const bool remote = selected == 2 || synchronized;
     if (remote && !online && c.op != Op::Stop) {
       notifyClient("Р”СЂСѓРіР° РєР°СЂРµС‚РєР° РѕС„Р»Р°Р№РЅ");
       return;
     }
-    if (linked_ && c.op != Op::Stop && c.op != Op::Reset && c.op != Op::Zero &&
+    const bool stopsMotors = c.op == Op::Stop || c.op == Op::MotorStop || (c.op == Op::Speed && !c.speed);
+    if (synchronized && !stopsMotors && c.op != Op::Reset && c.op != Op::Zero && c.op != Op::Servo &&
         (!local_.status(now).ready || !remoteState_.ready)) {
       notifyClient("Р СѓС… Р·Р°Р±Р»РѕРєРѕРІР°РЅРѕ РЅР° РѕРґРЅС–Р№ С–Р· РєР°СЂРµС‚РѕРє");
       return;
     }
     if (local && !local_.execute(c, now)) {
       notifyClient("РљРѕРјР°РЅРґСѓ РІС–РґС…РёР»РµРЅРѕ. РџРµСЂРµРІС–СЂС‚Рµ Р¶РёРІР»РµРЅРЅСЏ, РєР°Р»С–Р±СЂСѓРІР°РЅРЅСЏ С‚Р° СЃС‚Р°РЅ РїСЂРёРІРѕРґС–РІ.");
-      if (linked_) stopBoth(now, "local rejected command");
+      if (synchronized) stopBoth(now, "local rejected command");
       return;
     }
     if (remote) {
@@ -300,16 +316,26 @@ class Firmware {
     obj["servoAngle"] = s.servoSelected;
     obj["servoPosition"] = s.servoTarget;
     obj["servoEnabled"] = s.servo;
+    obj["servoTravel90Ms"] = ServoTravel90Ms;
+    obj["lightTest"] = uint8_t(s.lightTest);
     obj["mode"] = s.mode == Mode::Idle ? "СЃС‚РѕРї" : s.mode == Mode::Timed ? "С‚РµСЃС‚ С‡Р°СЃСѓ" : "СЂСѓС…";
     obj["testRemainingMs"] = s.remainingMs;
     obj["centered"] = s.centered;
     obj["calibrated"] = s.calibrated;
     obj["ready"] = s.ready;
+    obj["powered"] = s.powered;
     obj["locked"] = s.locked;
     obj["fault"] = s.fault;
     if (!online) return;
     obj["enc1"] = s.count[0];
     obj["enc2"] = s.count[1];
+    obj["countsPerSec1"] = s.countsPerSecond[0];
+    obj["countsPerSec2"] = s.countsPerSecond[1];
+    if (s.calibrated) {
+      obj["wheelSpeed1"] = s.wheelMps[0];
+      obj["wheelSpeed2"] = s.wheelMps[1];
+    }
+    if (s.maxMps > 0) obj["maxSpeed"] = s.maxMps;
     if (s.currentValid) obj["amps"] = s.amps;
     if (s.mv) {
       obj["volts"] = s.mv / 1000.0f;
