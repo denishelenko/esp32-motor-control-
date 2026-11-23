@@ -28,7 +28,7 @@ th:first-child{text-align:left}small{color:#d1dacd}
 <div class="settings">
  <label>Мотор <select id="motors"><option value="1">M1</option><option value="2">M2</option><option value="3">Обидва</option></select></label>
  <label>Кількість обертів <input id="turns" type="number" min="1" max="10" step="1" value="1" required></label>
- <label>Швидкість (ШІМ) <input id="speed" type="range" min="1" max="20" value="20"><output id="speedValue" for="speed">20%</output></label>
+ <label>Швидкість (ШІМ) <input id="speed" type="range" min="1" max="100" value="20"><output id="speedValue" for="speed">20%</output></label>
 </div>
 <div class="buttons"><button data-direction="left" disabled>← Вліво</button><button data-direction="right" disabled>Вправо →</button></div>
 <button id="stop">СТОП</button>
@@ -39,7 +39,8 @@ th:first-child{text-align:left}small{color:#d1dacd}
 <tr><th scope="row">Середній час, с/оберт</th><td id="secondsPerTurn0">—</td><td id="secondsPerTurn1">—</td></tr>
 <tr><th scope="row">Поточні відліки</th><td id="count0">—</td><td id="count1">—</td></tr>
 <tr><th scope="row">Ціль на хід</th><td id="goal0">—</td><td id="goal1">—</td></tr>
-<tr><th scope="row">Пройдено від старту, відл.</th><td id="offset0">—</td><td id="offset1">—</td></tr></tbody></table>
+<tr><th scope="row">Пройдено від старту, відл.</th><td id="offset0">—</td><td id="offset1">—</td></tr>
+<tr><th scope="row">Похибка після гальмування, відл.</th><td id="error0">—</td><td id="error1">—</td></tr></tbody></table>
 <p><small>Перевір кількість обертів і мітки фізично. Ціль обчислюється за поточними параметрами енкодерів.</small></p>
 </main>
 <script>
@@ -62,7 +63,7 @@ async function poll(){
    if(!state.active)token=0;
    if(!busy)el("status").textContent=state.message;
   }
-  for(const key of ["count","goal","offset"])
+  for(const key of ["count","goal","offset","error"])
    for(let i=0;i<2;i++)el(key+i).textContent=state[key]?.[i]??"—";
   for(const key of ["rpm","peakRpm"])
    for(let i=0;i<2;i++)el(key+i).textContent=format(state[key]?.[i],1);
@@ -93,10 +94,15 @@ poll();
 
 class MotorCalibration {
   enum class Phase { Idle, Running, Done, Failed };
+  enum class WheelPhase { Travel, Brake, Trim };
   static constexpr float NominalCountsPerTurn = 11.0f * 9.3f * 4.0f;
-  static constexpr int MaxSpeedPercent = 20, MaxTurns = 10;
+  static constexpr int MaxSpeedPercent = 100, MaxTurns = 10;
   static constexpr uint32_t RunTimeoutMs = 20000, LeaseMs = 1500, QuietMs = 200;
   static constexpr uint32_t SampleMs = 100;
+  static constexpr float BrakeLeadTurns = 14.0f / NominalCountsPerTurn;
+  static constexpr int ApproachDuty = 153, TrimDuty = 205;  // 15% and 20% on the 10-bit scale.
+  static constexpr uint8_t MaxTrimPulses = 16;
+  static constexpr uint32_t TrimMinMs = 20, TrimMaxMs = 50;
 
  public:
   void begin(const char *homeSsid = nullptr, const char *homePassword = nullptr) {
@@ -240,7 +246,8 @@ class MotorCalibration {
     for (unsigned i = 0; i < 2; ++i) {
       start_[i] = sampleCount_[i] = count_[i];
       changedAt_[i] = now;
-      braking_[i] = false;
+      wheelPhase_[i] = WheelPhase::Travel;
+      trimPulses_[i] = 0;
       peakRpm_[i] = secondsPerTurn_[i] = 0;
       goal_[i] = selected(i) ? lroundf(turns * countsPerTurn(i)) : 0;
       maxDuty_[i] = lroundf(1023 * min(speed / 100.0f, constrain(Motors[i].dutyMultiplier, 0.0f, 1.0f)));
@@ -248,6 +255,46 @@ class MotorCalibration {
     message_ = direction_ > 0 ? "Рух вправо" : "Рух вліво";
     log("ROTATION", "start motors=%u dir=%d PWM<=%d%% goal=%ld/%ld",
         selected_, direction_, speed, long(goal_[0]), long(goal_[1]));
+  }
+  bool serviceWheel(unsigned i, int64_t progress, uint32_t now) {
+    const int64_t remaining = goal_[i] - progress;
+    const int ceiling = maxDuty_[i];
+    switch (wheelPhase_[i]) {
+      case WheelPhase::Travel: {
+        if (remaining <= lroundf(BrakeLeadTurns * countsPerTurn(i))) {
+          brakeWheel(i, now);
+          return false;
+        }
+        if (now - changedAt_[i] >= 1000) {
+          finish(Phase::Failed, i == 0 ? "M1: немає відліків під час руху" : "M2: немає відліків під час руху");
+          return false;
+        }
+        const int approach = max(min(ApproachDuty, ceiling), int(ceiling * min(1.0f, remaining / (0.5f * countsPerTurn(i)))));
+        const int ramp = int(min(now - phaseAt_, uint32_t(700)) * ceiling / 700);
+        write(i, direction_ * min(approach, ramp));
+        return false;
+      }
+      case WheelPhase::Brake:
+        if (now - wheelPhaseAt_[i] < QuietMs || now - changedAt_[i] < QuietMs) return false;
+        if (remaining <= 0 || trimPulses_[i] >= MaxTrimPulses) return true;
+        ++trimPulses_[i];
+        trimStart_[i] = progress;
+        wheelPhase_[i] = WheelPhase::Trim;
+        wheelPhaseAt_[i] = now;
+        write(i, direction_ * min(TrimDuty, ceiling));
+        return false;
+      case WheelPhase::Trim: {
+        const uint32_t pulseMs = min(TrimMaxMs, TrimMinMs + 5U * (trimPulses_[i] - 1));
+        if (progress > trimStart_[i] || now - wheelPhaseAt_[i] >= pulseMs) brakeWheel(i, now);
+        return false;
+      }
+    }
+    return false;
+  }
+  void brakeWheel(unsigned i, uint32_t now) {
+    wheelPhase_[i] = WheelPhase::Brake;
+    wheelPhaseAt_[i] = now;
+    write(i, 0);
   }
   void serviceMove(uint32_t now) {
     if (now - phaseAt_ >= RunTimeoutMs) {
@@ -262,39 +309,25 @@ class MotorCalibration {
         finish(Phase::Failed, i == 0 ? "M1: відліки йдуть у протилежний бік" : "M2: відліки йдуть у протилежний бік");
         return;
       }
-      const int64_t remaining = goal_[i] - progress[i];
-      if (!braking_[i] && remaining <= 0) {
-        braking_[i] = true;
-        changedAt_[i] = now;
-        write(i, 0);
-      }
-      if (braking_[i]) {
-        settled &= now - changedAt_[i] >= QuietMs;
-        continue;
-      }
-      settled = false;
-      if (now - changedAt_[i] >= 1000) {
-        finish(Phase::Failed, i == 0 ? "M1: немає відліків під час руху" : "M2: немає відліків під час руху");
-        return;
-      }
-      const int ceiling = maxDuty_[i];
-      const int approach = constrain(int(remaining) * 2, min(120, ceiling), ceiling);
-      const int ramp = int(min(now - phaseAt_, uint32_t(700)) * ceiling / 700);
-      write(i, direction_ * min(approach, ramp));
+      settled &= serviceWheel(i, progress[i], now);
+      if (!active()) return;
     }
     if ((readyMotors() & selected_) != selected_) {
       finish(Phase::Failed, "Помилка виходу ШІМ");
       return;
     }
     if (!settled) return;
+    bool exact = true;
     for (unsigned i = 0; i < 2; ++i) {
       if (!selected(i)) continue;
+      exact &= progress[i] == goal_[i];
+      stoppedProgress_[i] = progress[i];
       const float turns = float(progress[i]) / countsPerTurn(i);
       if (turns > 0) secondsPerTurn_[i] = (changedAt_[i] - phaseAt_) / (1000.0f * turns);
       log("ROTATION", "M%u counts=%lld/%ld secondsPerTurn=%.2f", i + 1,
           (long long)progress[i], long(goal_[i]), secondsPerTurn_[i]);
     }
-    finish(Phase::Done, "Хід завершено · звір результати й мітки");
+    finish(Phase::Done, exact ? "Ціль досягнуто за енкодером · звір мітки" : "Зупинка з похибкою · перевір відліки й мітки");
   }
   void startRequested() {
     const int turns = boundedValue("turns", MaxTurns);
@@ -336,6 +369,7 @@ class MotorCalibration {
     auto counts = d["count"].to<JsonArray>();
     auto goals = d["goal"].to<JsonArray>();
     auto offsets = d["offset"].to<JsonArray>();
+    auto errors = d["error"].to<JsonArray>();
     auto rpm = d["rpm"].to<JsonArray>();
     auto peaks = d["peakRpm"].to<JsonArray>();
     auto seconds = d["secondsPerTurn"].to<JsonArray>();
@@ -346,7 +380,7 @@ class MotorCalibration {
       if (token_ && selected(i)) {
         peaks.add(peakRpm_[i]);
         goals.add(goal_[i]);
-        offsets.add(count_[i] - start_[i]);
+        offsets.add(phase_ == Phase::Done ? direction_ * stoppedProgress_[i] : count_[i] - start_[i]);
       } else {
         peaks.add(nullptr);
         goals.add(nullptr);
@@ -354,6 +388,8 @@ class MotorCalibration {
       }
       if (phase_ == Phase::Done && selected(i)) seconds.add(secondsPerTurn_[i]);
       else seconds.add(nullptr);
+      if (phase_ == Phase::Done && selected(i)) errors.add(stoppedProgress_[i] - goal_[i]);
+      else errors.add(nullptr);
     }
     sendJson(200, d);
   }
@@ -370,13 +406,16 @@ class MotorCalibration {
   Encoder encoders_[2];
   Phase phase_ = Phase::Idle;
   const char *message_ = "Оберіть кількість обертів";
-  bool encoderReady_[2]{}, pwmReady_[2]{}, braking_[2]{};
+  bool encoderReady_[2]{}, pwmReady_[2]{};
+  WheelPhase wheelPhase_[2]{};
+  uint8_t trimPulses_[2]{};
+  uint32_t wheelPhaseAt_[2]{};
   uint8_t selected_ = 0;
   int direction_ = 1;
   uint32_t phaseAt_ = 0, changedAt_[2]{}, leaseAt_ = 0, token_ = 0;
   int applied_[2]{}, maxDuty_[2]{};
   int32_t goal_[2]{};
-  int64_t count_[2]{}, start_[2]{};
+  int64_t count_[2]{}, start_[2]{}, trimStart_[2]{}, stoppedProgress_[2]{};
   uint32_t sampleAt_ = 0;
   int64_t sampleCount_[2]{};
   float rpm_[2]{}, peakRpm_[2]{}, secondsPerTurn_[2]{};
