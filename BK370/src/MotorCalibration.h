@@ -16,31 +16,40 @@ main{max-width:680px;margin:20px auto;padding:18px;background:#303a32;border-rad
 h1{margin-top:0;font-size:1.5rem}p{line-height:1.5}.buttons{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 button{min-height:48px;border:1px solid #829081;border-radius:11px;background:#222a24;color:inherit;font:inherit;font-weight:700}
 button:disabled{opacity:.45}#stop{width:100%;margin-top:12px;background:#78382e}
+.settings{display:grid;gap:10px;margin:16px 0}.settings label{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.settings input[type=range]{flex:1;min-width:60px;accent-color:#b0c6ad}
+.settings input[type=number],.settings select{width:100px;padding:8px;border:1px solid #829081;border-radius:8px;background:#222a24;color:inherit;font:inherit}
 table{width:100%;border-collapse:collapse;text-align:right}th,td{padding:7px 3px;border-bottom:1px solid #5e6a61}
 th:first-child{text-align:left}small{color:#d1dacd}
 @media(max-width:450px){main{margin:8px;padding:12px}}
 </style>
 <main><h1>BK370 · Калібрування моторів</h1>
-<p>Вправо → пауза 5 с → вліво. Підніми колеса над опорою й познач їхні початкові положення.</p>
-<div class="buttons"><button data-turns="1" disabled>1 оберт</button><button data-turns="5" disabled>5 обертів</button>
-<button data-turns="7" disabled>7 обертів</button><button data-turns="10" disabled>10 обертів</button></div>
+<p>Підніми колеса над опорою й познач їхні початкові положення.</p>
+<div class="settings">
+ <label>Мотор <select id="motors"><option value="1">M1</option><option value="2">M2</option><option value="3">Обидва</option></select></label>
+ <label>Кількість обертів <input id="turns" type="number" min="1" max="10" step="1" value="1" required></label>
+ <label>Швидкість (ШІМ) <input id="speed" type="range" min="1" max="20" value="20"><output id="speedValue" for="speed">20%</output></label>
+</div>
+<div class="buttons"><button data-direction="left" disabled>← Вліво</button><button data-direction="right" disabled>Вправо →</button></div>
 <button id="stop">СТОП</button>
 <p id="status" role="status">Підключення до ESP32…</p>
 <table><thead><tr><th scope="col">Параметр</th><th scope="col">M1</th><th scope="col">M2</th></tr></thead>
 <tbody><tr><th scope="row">Швидкість, об/хв</th><td id="rpm0">—</td><td id="rpm1">—</td></tr>
 <tr><th scope="row">Макс. швидкість, об/хв</th><td id="peakRpm0">—</td><td id="peakRpm1">—</td></tr>
+<tr><th scope="row">Середній час, с/оберт</th><td id="secondsPerTurn0">—</td><td id="secondsPerTurn1">—</td></tr>
 <tr><th scope="row">Поточні відліки</th><td id="count0">—</td><td id="count1">—</td></tr>
 <tr><th scope="row">Ціль на хід</th><td id="goal0">—</td><td id="goal1">—</td></tr>
-<tr><th scope="row">Вправо</th><td id="right0">—</td><td id="right1">—</td></tr>
-<tr><th scope="row">Вліво</th><td id="left0">—</td><td id="left1">—</td></tr>
-<tr><th scope="row">Зсув від старту</th><td id="offset0">—</td><td id="offset1">—</td></tr></tbody></table>
+<tr><th scope="row">Пройдено від старту, відл.</th><td id="offset0">—</td><td id="offset1">—</td></tr></tbody></table>
 <p><small>Перевір кількість обертів і мітки фізично. Ціль обчислюється за поточними параметрами енкодерів.</small></p>
 </main>
 <script>
-const el=id=>document.getElementById(id), buttons=[...document.querySelectorAll("[data-turns]")];
-let token=0,busy=false,ready=false;
+const el=id=>document.getElementById(id), buttons=[...document.querySelectorAll("[data-direction]")];
+let token=0,busy=false,active=false,readyMotors=0;
 const format=(value,digits)=>Number.isFinite(value)?value.toFixed(digits):"—";
-function updateButtons(){buttons.forEach(button=>button.disabled=busy||!ready)}
+function updateButtons(){
+ const selected=+el("motors").value;
+ buttons.forEach(button=>button.disabled=busy||active||(readyMotors&selected)!==selected);
+}
 async function poll(){
  const requestedToken=token;
  try{
@@ -48,38 +57,45 @@ async function poll(){
   if(!response.ok)throw Error();
   const state=await response.json();
   if(token===requestedToken){
-   ready=state.ready&&!state.active;
+   active=state.active;
+   readyMotors=state.readyMotors;
    if(!state.active)token=0;
    if(!busy)el("status").textContent=state.message;
   }
-  for(const key of ["count","goal","right","left","offset"])
+  for(const key of ["count","goal","offset"])
    for(let i=0;i<2;i++)el(key+i).textContent=state[key]?.[i]??"—";
   for(const key of ["rpm","peakRpm"])
    for(let i=0;i<2;i++)el(key+i).textContent=format(state[key]?.[i],1);
- }catch{ready=false;el("status").textContent="Немає зв’язку з ESP32";}
+  for(let i=0;i<2;i++)el("secondsPerTurn"+i).textContent=format(state.secondsPerTurn?.[i],2);
+ }catch{readyMotors=0;el("status").textContent="Немає зв’язку з ESP32";}
  updateButtons();
  setTimeout(poll,300);
 }
 buttons.forEach(button=>button.onclick=async()=>{
+ if(!el("turns").reportValidity())return;
+ const params=new URLSearchParams({turns:el("turns").value,speed:el("speed").value,
+                                  motors:el("motors").value,direction:button.dataset.direction});
  busy=true;updateButtons();
  try{
-  const response=await fetch("/start?turns="+button.dataset.turns,{method:"POST"});
+  const response=await fetch("/start?"+params,{method:"POST"});
   const result=await response.json();
-  if(response.ok){token=result.run;ready=false}
+  if(response.ok){token=result.run;active=true}
   else el("status").textContent=result.message;
- }catch{ready=false;el("status").textContent="Не вдалося надіслати команду";}
+ }catch{readyMotors=0;el("status").textContent="Не вдалося надіслати команду";}
  finally{busy=false;updateButtons()}
 });
+el("motors").onchange=updateButtons;
+el("speed").oninput=()=>{el("speedValue").textContent=el("speed").value+"%"};
 el("stop").onclick=()=>fetch("/stop",{method:"POST"}).catch(()=>{el("status").textContent="Немає зв’язку з ESP32"});
 poll();
 </script></html>
 )HTML";
 
 class MotorCalibration {
-  enum class Phase { Idle, Right, Wait, Left, Done, Failed };
+  enum class Phase { Idle, Running, Done, Failed };
   static constexpr float NominalCountsPerTurn = 11.0f * 9.3f * 4.0f;
-  static constexpr int MaxPwm = 205;  // 20% on the 10-bit output scale.
-  static constexpr uint32_t RunTimeoutMs = 20000, LeaseMs = 1500, QuietMs = 200, PauseMs = 5000;
+  static constexpr int MaxSpeedPercent = 20, MaxTurns = 10;
+  static constexpr uint32_t RunTimeoutMs = 20000, LeaseMs = 1500, QuietMs = 200;
   static constexpr uint32_t SampleMs = 100;
 
  public:
@@ -139,11 +155,9 @@ class MotorCalibration {
     }
     sampleTelemetry(now);
     if (active()) {
-      if (!ready(now)) finish(Phase::Failed, readyMessage(now));
+      if ((readyMotors() & selected_) != selected_) finish(Phase::Failed, "Помилка енкодера або ШІМ вибраного мотора");
       else if (now - leaseAt_ >= LeaseMs) finish(Phase::Failed, "Втрачено зв’язок із браузером");
-      else if (phase_ == Phase::Wait) {
-        if (now - phaseAt_ >= PauseMs) startLeg(Phase::Left, now);
-      } else serviceLeg(now);
+      else serviceMove(now);
     }
     server_.handleClient();
   }
@@ -169,25 +183,25 @@ class MotorCalibration {
       if (active()) finish(Phase::Failed, "Втрачено зв’язок із домашнім Wi-Fi");
     }
   }
-  bool active() const { return phase_ == Phase::Right || phase_ == Phase::Wait || phase_ == Phase::Left; }
-  const char *readyMessage(uint32_t now) const {
-    if (!encoderReady_[0] || !encoderReady_[1]) return "Помилка енкодера";
-    if (!pwmReady_[0] || !pwmReady_[1]) return "Помилка виходу ШІМ";
-    return nullptr;
+  bool active() const { return phase_ == Phase::Running; }
+  uint8_t readyMotors() const {
+    uint8_t mask = 0;
+    for (unsigned i = 0; i < 2; ++i)
+      if (encoderReady_[i] && pwmReady_[i]) mask |= 1U << i;
+    return mask;
   }
-  bool ready(uint32_t now) const { return readyMessage(now) == nullptr; }
+  bool selected(unsigned i) const { return selected_ & (1U << i); }
   static float countsPerTurn(unsigned i) {
     return Motors[i].countsPerWheelTurn > 0 ? float(Motors[i].countsPerWheelTurn) : NominalCountsPerTurn;
   }
   void sampleTelemetry(uint32_t now) {
     const uint32_t elapsed = now - sampleAt_;
     if (elapsed < SampleMs) return;
-    const bool movingLeg = phase_ == Phase::Right || phase_ == Phase::Left;
     for (unsigned i = 0; i < 2; ++i) {
       if (!encoderReady_[i]) continue;
       rpm_[i] = float(count_[i] - sampleCount_[i]) * 60000.0f / (elapsed * countsPerTurn(i));
       sampleCount_[i] = count_[i];
-      if (movingLeg) peakRpm_[i] = max(peakRpm_[i], fabsf(rpm_[i]));
+      if (active() && selected(i)) peakRpm_[i] = max(peakRpm_[i], fabsf(rpm_[i]));
     }
     sampleAt_ = now;
   }
@@ -219,32 +233,39 @@ class MotorCalibration {
     log("ROTATION", "ended phase=%u", unsigned(result));
     log("CALIBRATION", "max output rpm M1=%.1f M2=%.1f", peakRpm_[0], peakRpm_[1]);
   }
-  void startLeg(Phase phase, uint32_t now) {
-    phase_ = phase;
+  void startMove(int turns, int speed, uint32_t now) {
+    phase_ = Phase::Running;
     phaseAt_ = now;
+    sampleAt_ = now;
     for (unsigned i = 0; i < 2; ++i) {
-      legStart_[i] = count_[i];
+      start_[i] = sampleCount_[i] = count_[i];
       changedAt_[i] = now;
       braking_[i] = false;
+      peakRpm_[i] = secondsPerTurn_[i] = 0;
+      goal_[i] = selected(i) ? lroundf(turns * countsPerTurn(i)) : 0;
+      maxDuty_[i] = lroundf(1023 * min(speed / 100.0f, constrain(Motors[i].dutyMultiplier, 0.0f, 1.0f)));
     }
-    message_ = phase == Phase::Right ? "Рух вправо" : "Рух вліво";
-    log("ROTATION", "start dir=%d goal=%ld/%ld", phase == Phase::Right ? 1 : -1, long(goal_[0]), long(goal_[1]));
+    message_ = direction_ > 0 ? "Рух вправо" : "Рух вліво";
+    log("ROTATION", "start motors=%u dir=%d PWM<=%d%% goal=%ld/%ld",
+        selected_, direction_, speed, long(goal_[0]), long(goal_[1]));
   }
-  void serviceLeg(uint32_t now) {
+  void serviceMove(uint32_t now) {
     if (now - phaseAt_ >= RunTimeoutMs) {
       finish(Phase::Failed, "Вичерпано час руху");
       return;
     }
-    const bool right = phase_ == Phase::Right;
-    const int direction = right ? 1 : -1;
-    const int64_t progress[2] = {direction * (count_[0] - legStart_[0]), direction * (count_[1] - legStart_[1])};
-    const float skew = fabsf(progress[0] / countsPerTurn(0) - progress[1] / countsPerTurn(1));
-    if (progress[0] < -6 || progress[1] < -6 || skew > 0.25f) {
-      finish(Phase::Failed, "Напрямок або відліки коліс не збігаються");
+    const int64_t progress[2] = {direction_ * (count_[0] - start_[0]), direction_ * (count_[1] - start_[1])};
+    if (selected_ == 3 && fabsf(progress[0] / countsPerTurn(0) - progress[1] / countsPerTurn(1)) > 0.25f) {
+      finish(Phase::Failed, "Енкодери M1 і M2 розійшлися більш ніж на ¼ оберту");
       return;
     }
     bool settled = true;
     for (unsigned i = 0; i < 2; ++i) {
+      if (!selected(i)) continue;
+      if (progress[i] < -6) {
+        finish(Phase::Failed, i == 0 ? "M1: відліки йдуть у протилежний бік" : "M2: відліки йдуть у протилежний бік");
+        return;
+      }
       const int64_t remaining = goal_[i] - progress[i];
       if (!braking_[i] && remaining <= 0) {
         braking_[i] = true;
@@ -257,79 +278,86 @@ class MotorCalibration {
       }
       settled = false;
       if (now - changedAt_[i] >= 1000) {
-        finish(Phase::Failed, "Колесо не рухається або енкодер не дає відліків");
+        finish(Phase::Failed, i == 0 ? "M1: немає відліків під час руху" : "M2: немає відліків під час руху");
         return;
       }
-      const int ceiling = min(MaxPwm, int(1023 * constrain(Motors[i].dutyMultiplier, 0.0f, 1.0f)));
+      const int ceiling = maxDuty_[i];
       const int approach = constrain(int(remaining) * 2, min(120, ceiling), ceiling);
       const int ramp = int(min(now - phaseAt_, uint32_t(700)) * ceiling / 700);
-      write(i, direction * min(approach, ramp));
+      write(i, direction_ * min(approach, ramp));
     }
-    if (!pwmReady_[0] || !pwmReady_[1]) {
+    if ((readyMotors() & selected_) != selected_) {
       finish(Phase::Failed, "Помилка виходу ШІМ");
       return;
     }
     if (!settled) return;
-    auto &result = right ? right_ : left_;
-    for (unsigned i = 0; i < 2; ++i) result[i] = count_[i] - legStart_[i];
-    log("ROTATION", "settled dir=%d count=%lld/%lld offset=%lld/%lld", direction,
-        (long long)result[0], (long long)result[1], (long long)(count_[0] - start_[0]), (long long)(count_[1] - start_[1]));
-    if (right) {
-      rightDone_ = true;
-      phase_ = Phase::Wait;
-      phaseAt_ = now;
-      message_ = "Колеса зупинилися · пауза 5 секунд";
-    } else {
-      leftDone_ = true;
-      finish(Phase::Done, "Тест завершено · звір результати й мітки");
+    for (unsigned i = 0; i < 2; ++i) {
+      if (!selected(i)) continue;
+      const float turns = float(progress[i]) / countsPerTurn(i);
+      if (turns > 0) secondsPerTurn_[i] = (changedAt_[i] - phaseAt_) / (1000.0f * turns);
+      log("ROTATION", "M%u counts=%lld/%ld secondsPerTurn=%.2f", i + 1,
+          (long long)progress[i], long(goal_[i]), secondsPerTurn_[i]);
     }
+    finish(Phase::Done, "Хід завершено · звір результати й мітки");
   }
   void startRequested() {
-    const String turns = server_.arg("turns");
+    const int turns = boundedValue("turns", MaxTurns);
+    const int speed = boundedValue("speed", MaxSpeedPercent);
+    const uint8_t motors = boundedValue("motors", 3);
+    const String direction = server_.arg("direction");
     const uint32_t now = millis();
     JsonDocument d;
-    if (active() || !ready(now) || (turns != "1" && turns != "5" && turns != "7" && turns != "10")) {
-      d["message"] = active() ? "Тест уже триває" : !ready(now) ? readyMessage(now) : "Оберіть 1, 5, 7 або 10 обертів";
+    if (!turns || !speed || !motors || (direction != "right" && direction != "left")) {
+      d["message"] = "Перевір кількість обертів, ШІМ, мотор і напрямок";
+      sendJson(400, d);
+      return;
+    }
+    if (active() || (readyMotors() & motors) != motors) {
+      d["message"] = active() ? "Тест уже триває" : "Помилка енкодера або ШІМ вибраного мотора";
       sendJson(409, d);
       return;
     }
-    rightDone_ = leftDone_ = false;
-    sampleAt_ = now;
-    for (unsigned i = 0; i < 2; ++i) {
-      start_[i] = count_[i];
-      sampleCount_[i] = count_[i];
-      peakRpm_[i] = 0;
-      goal_[i] = lroundf(turns.toInt() * countsPerTurn(i));
-    }
+    selected_ = motors;
+    direction_ = direction == "right" ? 1 : -1;
     token_ = esp_random() | 1U;
     leaseAt_ = now;
-    startLeg(Phase::Right, now);
+    startMove(turns, speed, now);
     d["run"] = token_;
     sendJson(200, d);
+  }
+  int boundedValue(const char *name, int maxValue) {
+    const String value = server_.arg(name);
+    const long number = value.toInt();
+    return number >= 1 && number <= maxValue && value == String(number) ? int(number) : 0;
   }
   void sendStatus() {
     const uint32_t now = millis();
     if (active() && strtoul(server_.arg("run").c_str(), nullptr, 10) == token_) leaseAt_ = now;
     JsonDocument d;
-    d["ready"] = ready(now);
+    d["readyMotors"] = readyMotors();
     d["active"] = active();
-    const char *blocker = readyMessage(now);
-    d["message"] = blocker && phase_ != Phase::Failed ? blocker : message_;
+    d["message"] = !readyMotors() && phase_ == Phase::Idle ? "Помилка енкодерів або виходів ШІМ" : message_;
     auto counts = d["count"].to<JsonArray>();
     auto goals = d["goal"].to<JsonArray>();
-    auto right = d["right"].to<JsonArray>();
-    auto left = d["left"].to<JsonArray>();
     auto offsets = d["offset"].to<JsonArray>();
     auto rpm = d["rpm"].to<JsonArray>();
     auto peaks = d["peakRpm"].to<JsonArray>();
+    auto seconds = d["secondsPerTurn"].to<JsonArray>();
     for (unsigned i = 0; i < 2; ++i) {
       counts.add(count_[i]);
       if (encoderReady_[i]) rpm.add(rpm_[i]);
       else rpm.add(nullptr);
-      if (token_) peaks.add(peakRpm_[i]);
-      if (token_) { goals.add(goal_[i]); offsets.add(count_[i] - start_[i]); }
-      if (rightDone_) right.add(right_[i]);
-      if (leftDone_) left.add(left_[i]);
+      if (token_ && selected(i)) {
+        peaks.add(peakRpm_[i]);
+        goals.add(goal_[i]);
+        offsets.add(count_[i] - start_[i]);
+      } else {
+        peaks.add(nullptr);
+        goals.add(nullptr);
+        offsets.add(nullptr);
+      }
+      if (phase_ == Phase::Done && selected(i)) seconds.add(secondsPerTurn_[i]);
+      else seconds.add(nullptr);
     }
     sendJson(200, d);
   }
@@ -346,13 +374,15 @@ class MotorCalibration {
   Encoder encoders_[2];
   Phase phase_ = Phase::Idle;
   const char *message_ = "Оберіть кількість обертів";
-  bool encoderReady_[2]{}, pwmReady_[2]{}, braking_[2]{}, rightDone_ = false, leftDone_ = false;
+  bool encoderReady_[2]{}, pwmReady_[2]{}, braking_[2]{};
+  uint8_t selected_ = 0;
+  int direction_ = 1;
   uint32_t phaseAt_ = 0, changedAt_[2]{}, leaseAt_ = 0, token_ = 0;
-  int applied_[2]{};
+  int applied_[2]{}, maxDuty_[2]{};
   int32_t goal_[2]{};
-  int64_t count_[2]{}, start_[2]{}, legStart_[2]{}, right_[2]{}, left_[2]{};
+  int64_t count_[2]{}, start_[2]{};
   uint32_t sampleAt_ = 0;
   int64_t sampleCount_[2]{};
-  float rpm_[2]{}, peakRpm_[2]{};
+  float rpm_[2]{}, peakRpm_[2]{}, secondsPerTurn_[2]{};
 };
 }
