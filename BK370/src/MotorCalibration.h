@@ -33,6 +33,7 @@ th:first-child{text-align:left}small{color:#d1dacd}
 <div class="buttons"><button data-direction="left" disabled>← Вліво</button><button data-direction="right" disabled>Вправо →</button></div>
 <button id="stop">СТОП</button>
 <p id="status" role="status">Підключення до ESP32…</p>
+<p id="accepted" role="status"></p>
 <p id="warning" role="status" style="color:#ffd08a"></p>
 <table><thead><tr><th scope="col">Параметр</th><th scope="col">M1</th><th scope="col">M2</th></tr></thead>
 <tbody><tr><th scope="row">Швидкість, об/хв</th><td id="rpm0">—</td><td id="rpm1">—</td></tr>
@@ -59,6 +60,7 @@ async function poll(){
   const response=await fetch("/status?run="+requestedToken,{cache:"no-store"});
   if(!response.ok)throw Error();
   const state=await response.json();
+  el("accepted").textContent=state.requestedTurns?"ESP32 прийняла "+state.requestedTurns+" обертів · "+(state.direction>0?"вправо":"вліво"):"";
   el("warning").textContent=state.directionWarning||"";
   if(token===requestedToken){
    active=state.active;
@@ -238,9 +240,15 @@ class MotorCalibration {
     phase_ = result;
     message_ = message;
     log("ROTATION", "ended phase=%u", unsigned(result));
+    log("ROTATION", "reason=%s", message);
+    for (unsigned i = 0; i < 2; ++i) {
+      if (selected(i)) log("ROTATION", "M%u final=%lld target=%lld elapsed=%lu ms", i + 1,
+          (long long)llabs(count_[i] - start_[i]), (long long)goal_[i], (unsigned long)(millis() - phaseAt_));
+    }
     log("CALIBRATION", "max output rpm M1=%.1f M2=%.1f", peakRpm_[0], peakRpm_[1]);
   }
   void startMove(int turns, int speed, uint32_t now) {
+    requestedTurns_ = turns;
     phase_ = Phase::Running;
     phaseAt_ = now;
     runTimeoutMs_ = max(MinRunTimeoutMs, uint32_t(turns) * TimeoutPerTurnMs);
@@ -350,6 +358,8 @@ class MotorCalibration {
     JsonDocument d;
     d["readyMotors"] = readyMotors();
     d["active"] = active();
+    d["requestedTurns"] = requestedTurns_;
+    d["direction"] = direction_;
     d["directionWarning"] = directionWarning_[0] && directionWarning_[1] ? "M1 і M2: знак енкодера протилежний команді. Тест продовжується." :
       directionWarning_[0] ? "M1: знак енкодера протилежний команді. Тест продовжується." :
       directionWarning_[1] ? "M2: знак енкодера протилежний команді. Тест продовжується." : "";
@@ -406,6 +416,7 @@ class MotorCalibration {
   uint32_t brakeAt_[2]{};
   uint8_t selected_ = 0;
   int direction_ = 1;
+  int requestedTurns_ = 0;
   uint32_t phaseAt_ = 0, runTimeoutMs_ = 0, changedAt_[2]{}, leaseAt_ = 0, token_ = 0;
   int applied_[2]{}, maxDuty_[2]{};
   int64_t goal_[2]{}, count_[2]{}, start_[2]{}, stoppedProgress_[2]{};
