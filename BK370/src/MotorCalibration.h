@@ -106,6 +106,8 @@ class MotorCalibration {
   static constexpr uint32_t LeaseMs = 1500, QuietMs = 200;
   static constexpr uint32_t SampleMs = 100;
   static constexpr int ApproachDuty = 153;  // 15% on the 10-bit scale.
+  // Initial compensation from the observed quarter-turn overshoot.
+  static constexpr double BrakeAdvanceDegrees[2] = {90.0, 90.0};  // M1, M2
 
  public:
   void begin(const char *homeSsid = nullptr, const char *homePassword = nullptr) {
@@ -268,13 +270,15 @@ class MotorCalibration {
   }
   bool serviceWheel(unsigned i, int64_t progress, uint32_t now) {
     const int64_t remaining = goal_[i] - progress;
+    const int64_t advance = min(goal_[i] - 1, llround(countsPerTurn(i) * BrakeAdvanceDegrees[i] / 360.0));
     if (braking_[i])
       return now - brakeAt_[i] >= QuietMs && now - changedAt_[i] >= QuietMs;
-    if (remaining <= 0) {
+    if (remaining <= advance) {
       braking_[i] = true;
       brakeAt_[i] = now;
       write(i, 0);
       log("BRAKE", "M%u LOW/LOW counts=%lld/%lld", i + 1, (long long)progress, (long long)goal_[i]);
+      log("BRAKE", "M%u advance=%.1f deg (%lld counts)", i + 1, BrakeAdvanceDegrees[i], (long long)advance);
       return false;
     }
     if (now - changedAt_[i] >= 1000) {
