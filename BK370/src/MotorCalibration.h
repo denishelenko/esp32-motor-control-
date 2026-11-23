@@ -255,10 +255,6 @@ class MotorCalibration {
       return;
     }
     const int64_t progress[2] = {direction_ * (count_[0] - start_[0]), direction_ * (count_[1] - start_[1])};
-    if (selected_ == 3 && fabsf(progress[0] / countsPerTurn(0) - progress[1] / countsPerTurn(1)) > 0.25f) {
-      finish(Phase::Failed, "Енкодери M1 і M2 розійшлися більш ніж на ¼ оберту");
-      return;
-    }
     bool settled = true;
     for (unsigned i = 0; i < 2; ++i) {
       if (!selected(i)) continue;
