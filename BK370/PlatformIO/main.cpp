@@ -3,7 +3,9 @@
 #include <WiFi.h>
 #include <Wire.h>
 
-#if BK_ROLE == 0
+#if defined(BK_MOTOR_CALIBRATION)
+#include "../Arduino IDE/BK370_Motor_Calibration/BK370_Motor_Calibration.ino"
+#elif BK_ROLE == 0
 #include "../Arduino IDE/BK370_Single/BK370_Single.ino"
 #elif BK_ROLE == 1
 #include "../Arduino IDE/BK370_Main/BK370_Main.ino"
