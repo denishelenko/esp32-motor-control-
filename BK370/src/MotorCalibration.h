@@ -29,7 +29,10 @@ th:first-child{text-align:left}small{color:#d1dacd}
  <label>Мотор <select id="motors"><option value="1">M1</option><option value="2">M2</option><option value="3">Обидва</option></select></label>
  <label>Кількість обертів <input id="turns" type="number" min="1" max="100000" step="1" value="1" required></label>
  <label>Швидкість (ШІМ) <input id="speed" type="range" min="1" max="100" value="20"><output id="speedValue" for="speed">20%</output></label>
+ <label>Гальмувати M1 раніше, тіків <input id="brakeM1" type="number" min="0" max="2147483647" step="1" value="__BRAKE_M1__" required></label>
+ <label>Гальмувати M2 раніше, тіків <input id="brakeM2" type="number" min="0" max="2147483647" step="1" value="__BRAKE_M2__" required></label>
 </div>
+<p><small>Більше тіків — раніше гальмування. Нуль — гальмування на цілі. Значення застосуються до наступного запуску.</small></p>
 <div class="buttons"><button data-direction="left" disabled>← Вліво</button><button data-direction="right" disabled>Вправо →</button></div>
 <button id="stop">СТОП</button>
 <p id="status" role="status">Підключення до ESP32…</p>
@@ -79,9 +82,10 @@ async function poll(){
  setTimeout(poll,300);
 }
 buttons.forEach(button=>button.onclick=async()=>{
- if(!el("turns").reportValidity())return;
+ if(!el("turns").reportValidity()||!el("brakeM1").reportValidity()||!el("brakeM2").reportValidity())return;
  const params=new URLSearchParams({turns:el("turns").value,speed:el("speed").value,
-                                  motors:el("motors").value,direction:button.dataset.direction});
+                                  motors:el("motors").value,direction:button.dataset.direction,
+                                  brakeM1:el("brakeM1").value,brakeM2:el("brakeM2").value});
  busy=true;updateButtons();
  try{
   const response=await fetch("/start?"+params,{method:"POST"});
@@ -148,7 +152,13 @@ class MotorCalibration {
       WiFi.softAP(SSID, Password, Channel);
       announceSite(WiFi.softAPIP());
     }
-    server_.on("/", HTTP_GET, [this] { server_.send_P(200, "text/html; charset=utf-8", MotorCalibrationHtml); });
+    server_.on("/", HTTP_GET, [this] {
+      String html(MotorCalibrationHtml);
+      html.replace("__BRAKE_M1__", String(BrakeAdvanceTicks[0]));
+      html.replace("__BRAKE_M2__", String(BrakeAdvanceTicks[1]));
+      server_.sendHeader("Cache-Control", "no-store");
+      server_.send(200, "text/html; charset=utf-8", html);
+    });
     server_.on("/start", HTTP_POST, [this] { startRequested(); });
     server_.on("/status", HTTP_GET, [this] { sendStatus(); });
     server_.on("/stop", HTTP_POST, [this] {
@@ -275,7 +285,7 @@ class MotorCalibration {
   }
   bool serviceWheel(unsigned i, int64_t progress, uint32_t now) {
     const int64_t remaining = goal_[i] - progress;
-    const int64_t advance = min(goal_[i] - 1, int64_t(BrakeAdvanceTicks[i]));
+    const int64_t advance = min(goal_[i] - 1, int64_t(runBrakeTicks_[i]));
     if (braking_[i])
       return now - brakeAt_[i] >= QuietMs && now - changedAt_[i] >= QuietMs;
     if (remaining <= advance) {
@@ -335,11 +345,13 @@ class MotorCalibration {
     const int turns = boundedValue("turns", MaxTurns);
     const int speed = boundedValue("speed", MaxSpeedPercent);
     const uint8_t motors = boundedValue("motors", 3);
+    const int32_t brakeM1 = brakeTicksArgument("brakeM1");
+    const int32_t brakeM2 = brakeTicksArgument("brakeM2");
     const String direction = server_.arg("direction");
     const uint32_t now = millis();
     JsonDocument d;
-    if (!turns || !speed || !motors || (direction != "right" && direction != "left")) {
-      d["message"] = "Перевір кількість обертів, ШІМ, мотор і напрямок";
+    if (!turns || !speed || !motors || brakeM1 < 0 || brakeM2 < 0 || (direction != "right" && direction != "left")) {
+      d["message"] = "Перевір оберти, ШІМ, мотор, напрямок і невід’ємні цілі тіки гальма";
       sendJson(400, d);
       return;
     }
@@ -349,12 +361,22 @@ class MotorCalibration {
       return;
     }
     selected_ = motors;
+    runBrakeTicks_[0] = brakeM1;
+    runBrakeTicks_[1] = brakeM2;
     direction_ = direction == "right" ? 1 : -1;
     token_ = esp_random() | 1U;
     leaseAt_ = now;
     startMove(turns, speed, now);
     d["run"] = token_;
     sendJson(200, d);
+  }
+  int32_t brakeTicksArgument(const char *name) {
+    const String value = server_.arg(name);
+    if (value.isEmpty()) return -1;
+    char *end = nullptr;
+    const long long number = strtoll(value.c_str(), &end, 10);
+    if (!end || *end || number < 0 || number > INT32_MAX || value != String(long(number))) return -1;
+    return int32_t(number);
   }
   int boundedValue(const char *name, int maxValue) {
     const String value = server_.arg(name);
@@ -426,6 +448,7 @@ class MotorCalibration {
   uint8_t selected_ = 0;
   int direction_ = 1;
   int requestedTurns_ = 0;
+  int32_t runBrakeTicks_[2] = {M1BrakeAdvanceTicks, M2BrakeAdvanceTicks};
   uint32_t phaseAt_ = 0, runTimeoutMs_ = 0, changedAt_[2]{}, leaseAt_ = 0, token_ = 0;
   int applied_[2]{}, maxDuty_[2]{};
   int64_t goal_[2]{}, count_[2]{}, start_[2]{}, stoppedProgress_[2]{};
