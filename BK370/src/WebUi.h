@@ -66,6 +66,7 @@ function redraw(){
  const delta=targetAngle-visual.angle;
  visual.angle+=Math.sign(delta)*Math.min(Math.abs(delta),maxStep);visual.last=now;
  const positionKnown=c.online&&c.centered&&c.calibrated;
+ $("battery").hidden=c.hasIna226===false;
  $("battery").textContent=c.online&&Number.isFinite(c.volts)?"Батарея ≈ "+c.charge.toFixed(0)+"% · "+c.volts.toFixed(2)+" В"+(Number.isFinite(c.amps)?" · "+c.amps.toFixed(2)+" А":""):"Батарея —";
  $("encoder").textContent=c.online&&Number.isFinite(c.enc1)?"Імпульси A/B · M1 "+c.enc1+" · M2 "+c.enc2:"Енкодери —";
  const measured=Number.isFinite(c.wheelSpeed1)&&Number.isFinite(c.wheelSpeed2);
@@ -75,7 +76,7 @@ function redraw(){
  $("lightStatus").textContent=lightNames[c.lightTest]?lightNames[c.lightTest]+" блимає…":"Кожен тест блимає 3 секунди.";
  all("[data-light]").forEach(button=>button.disabled=!c.online||!c.powered||c.servoEnabled||c.mode!=="стоп");
  $("interlock").textContent=!c.online?"Офлайн":c.locked?"Зупинка · низька напруга":c.fault?"Помилка енкодера":!c.ready?"Приводи заблоковані":!Number.isFinite(c.maxSpeed)?"Швидкість ще не відкалібрована · доступний тест за часом":!positionKnown?"Для руху в метрах потрібні калібрування та центр":"";
- $("batteryReset").hidden=!c.locked;
+ $("batteryReset").hidden=c.hasIna226===false||!c.locked;
  $("target").disabled=!c.ready||!positionKnown||!Number.isFinite(c.maxSpeed);
  $("targetMetres").disabled=$("sendTarget").disabled=$("target").disabled;
  $("targetIcon").hidden=!positionKnown;

@@ -10,7 +10,7 @@
 #include "WebUi.h"
 
 namespace bk370 {
-constexpr uint32_t RadioMagic = 0x424b3702;
+constexpr uint32_t RadioMagic = 0x424b3704;
 constexpr uint32_t LinkTimeout = 600;
 struct Packet {
   uint32_t magic = RadioMagic, sender = 0, receiver = 0, sequence = 0;
@@ -21,7 +21,7 @@ struct Packet {
 static_assert(sizeof(Packet) <= 250, "ESP-NOW packet exceeds the v1 payload limit");
 struct Frame { Packet packet; uint32_t receivedAt; int8_t rssi; };
 
-template<int Role>
+template<int Role, bool UseIna226>
 class Firmware {
  public:
   void begin() {
@@ -324,6 +324,7 @@ class Firmware {
     obj["calibrated"] = s.calibrated;
     obj["ready"] = s.ready;
     obj["powered"] = s.powered;
+    obj["hasIna226"] = s.hasIna226;
     obj["locked"] = s.locked;
     obj["fault"] = s.fault;
     if (!online) return;
@@ -357,7 +358,7 @@ class Firmware {
     serializeJson(d, msg);
     socket_.broadcastTXT(msg);
   }
-  Carriage local_;
+  Carriage<UseIna226> local_;
   WebServer server_{80};
   WebSocketsServer socket_{81};
   Command pending_{};
@@ -370,7 +371,7 @@ class Firmware {
   bool linked_ = false, wasOnline_ = false, radioReady_ = false, remoteArmed_ = false, commandAccepted_ = false;
 };
 
-template<int Role> inline Firmware<Role> instance;
-template<int Role> void begin() { instance<Role>.begin(); }
-template<int Role> void tick() { instance<Role>.tick(); }
+template<int Role, bool UseIna226> inline Firmware<Role, UseIna226> instance;
+template<int Role, bool UseIna226 = true> void begin() { instance<Role, UseIna226>.begin(); }
+template<int Role, bool UseIna226 = true> void tick() { instance<Role, UseIna226>.tick(); }
 }

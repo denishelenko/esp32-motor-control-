@@ -26,7 +26,6 @@ th:first-child{text-align:left}small{color:#d1dacd}
 <button data-turns="7" disabled>7 обертів</button><button data-turns="10" disabled>10 обертів</button></div>
 <button id="stop">СТОП</button>
 <p id="status" role="status">Підключення до ESP32…</p>
-<p id="power">INA226 · немає показів</p>
 <table><thead><tr><th scope="col">Параметр</th><th scope="col">M1</th><th scope="col">M2</th></tr></thead>
 <tbody><tr><th scope="row">Швидкість, об/хв</th><td id="rpm0">—</td><td id="rpm1">—</td></tr>
 <tr><th scope="row">Макс. швидкість, об/хв</th><td id="peakRpm0">—</td><td id="peakRpm1">—</td></tr>
@@ -57,8 +56,6 @@ async function poll(){
    for(let i=0;i<2;i++)el(key+i).textContent=state[key]?.[i]??"—";
   for(const key of ["rpm","peakRpm"])
    for(let i=0;i<2;i++)el(key+i).textContent=format(state[key]?.[i],1);
-  el("power").textContent="INA226 · "+format(state.volts,2)+" В · "+format(state.amps,2)+" А · "+
-    format(state.watts,1)+" Вт"+(Number.isFinite(state.peakAmps)?" · максимум за тест "+format(state.peakAmps,2)+" А":"");
  }catch{ready=false;el("status").textContent="Немає зв’язку з ESP32";}
  updateButtons();
  setTimeout(poll,300);
@@ -86,9 +83,8 @@ class MotorCalibration {
   static constexpr uint32_t SampleMs = 100;
 
  public:
-  void begin() {
+  void begin(const char *homeSsid = nullptr, const char *homePassword = nullptr) {
     Serial.begin(115200);
-    battery_.begin();
     for (unsigned i = 0; i < 2; ++i) {
       const auto &cfg = Motors[i];
       // Start both driver inputs LOW and attach separate channels.
@@ -107,9 +103,19 @@ class MotorCalibration {
       }
       encoderReady_[i] = encoders_[i].begin(cfg);
     }
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP(SSID, Password, Channel);
-    if (MDNS.begin("motor-control")) MDNS.addService("http", "tcp", 80);
+    homeWifi_ = homeSsid != nullptr;
+    if (homeWifi_) {
+      WiFi.mode(WIFI_STA);
+      WiFi.setAutoReconnect(true);
+      if (*homeSsid) {
+        WiFi.begin(homeSsid, homePassword);
+        log("WIFI", "Connecting to home Wi-Fi (2.4 GHz)");
+      } else log("WIFI", "Set HOME_WIFI_SSID in the Home sketch");
+    } else {
+      WiFi.mode(WIFI_AP);
+      WiFi.softAP(SSID, Password, Channel);
+      announceSite(WiFi.softAPIP());
+    }
     server_.on("/", HTTP_GET, [this] { server_.send_P(200, "text/html; charset=utf-8", MotorCalibrationHtml); });
     server_.on("/start", HTTP_POST, [this] { startRequested(); });
     server_.on("/status", HTTP_GET, [this] { sendStatus(); });
@@ -118,12 +124,11 @@ class MotorCalibration {
       server_.send(204);
     });
     server_.begin();
-    log("ROTATION", "http://motor-control.local/ or http://192.168.4.1/");
   }
 
   void tick() {
     const uint32_t now = millis();
-    battery_.tick(now);
+    if (homeWifi_) serviceHomeWifi();
     for (unsigned i = 0; i < 2; ++i) {
       int64_t value;
       if (encoderReady_[i] && !encoders_[i].read(value)) encoderReady_[i] = false;
@@ -144,12 +149,30 @@ class MotorCalibration {
   }
 
  private:
+  void announceSite(IPAddress ip) {
+    mdnsReady_ = MDNS.begin("motor-control");
+    if (mdnsReady_) MDNS.addService("http", "tcp", 80);
+    log("WEB", "http://%s/%s", ip.toString().c_str(),
+        mdnsReady_ ? " or http://motor-control.local/" : "");
+  }
+  void serviceHomeWifi() {
+    const IPAddress ip = WiFi.status() == WL_CONNECTED ? WiFi.localIP() : IPAddress();
+    if (ip == homeIp_) return;
+    if (mdnsReady_) {
+      MDNS.end();
+      mdnsReady_ = false;
+    }
+    homeIp_ = ip;
+    if (uint32_t(ip)) announceSite(ip);
+    else {
+      log("WIFI", "Home Wi-Fi disconnected");
+      if (active()) finish(Phase::Failed, "Втрачено зв’язок із домашнім Wi-Fi");
+    }
+  }
   bool active() const { return phase_ == Phase::Right || phase_ == Phase::Wait || phase_ == Phase::Left; }
   const char *readyMessage(uint32_t now) const {
     if (!encoderReady_[0] || !encoderReady_[1]) return "Помилка енкодера";
     if (!pwmReady_[0] || !pwmReady_[1]) return "Помилка виходу ШІМ";
-    if (!DriveCommissioned) return "Рух заблоковано · DriveCommissioned у Settings.h";
-    if (!battery_.ready(now)) return "Перевір живлення та INA226";
     return nullptr;
   }
   bool ready(uint32_t now) const { return readyMessage(now) == nullptr; }
@@ -165,10 +188,6 @@ class MotorCalibration {
       rpm_[i] = float(count_[i] - sampleCount_[i]) * 60000.0f / (elapsed * countsPerTurn(i));
       sampleCount_[i] = count_[i];
       if (movingLeg) peakRpm_[i] = max(peakRpm_[i], fabsf(rpm_[i]));
-    }
-    if (movingLeg && battery_.valid && battery_.currentValid) {
-      peakAmps_ = hasPeakAmps_ ? max(peakAmps_, battery_.amps) : battery_.amps;
-      hasPeakAmps_ = true;
     }
     sampleAt_ = now;
   }
@@ -199,7 +218,6 @@ class MotorCalibration {
     message_ = message;
     log("ROTATION", "ended phase=%u", unsigned(result));
     log("CALIBRATION", "max output rpm M1=%.1f M2=%.1f", peakRpm_[0], peakRpm_[1]);
-    if (hasPeakAmps_) log("CALIBRATION", "max sampled current=%.2f A", peakAmps_);
   }
   void startLeg(Phase phase, uint32_t now) {
     phase_ = phase;
@@ -277,8 +295,6 @@ class MotorCalibration {
     }
     rightDone_ = leftDone_ = false;
     sampleAt_ = now;
-    peakAmps_ = 0;
-    hasPeakAmps_ = false;
     for (unsigned i = 0; i < 2; ++i) {
       start_[i] = count_[i];
       sampleCount_[i] = count_[i];
@@ -299,12 +315,6 @@ class MotorCalibration {
     d["active"] = active();
     const char *blocker = readyMessage(now);
     d["message"] = blocker && phase_ != Phase::Failed ? blocker : message_;
-    if (battery_.valid) d["volts"] = battery_.millivolts / 1000.0f;
-    if (battery_.valid && battery_.currentValid) {
-      d["amps"] = battery_.amps;
-      d["watts"] = battery_.amps * battery_.millivolts / 1000.0f;
-    }
-    if (hasPeakAmps_) d["peakAmps"] = peakAmps_;
     auto counts = d["count"].to<JsonArray>();
     auto goals = d["goal"].to<JsonArray>();
     auto right = d["right"].to<JsonArray>();
@@ -331,7 +341,8 @@ class MotorCalibration {
   }
 
   WebServer server_{80};
-  BatteryMonitor battery_;
+  IPAddress homeIp_{};
+  bool homeWifi_ = false, mdnsReady_ = false;
   Encoder encoders_[2];
   Phase phase_ = Phase::Idle;
   const char *message_ = "Оберіть кількість обертів";
@@ -342,7 +353,6 @@ class MotorCalibration {
   int64_t count_[2]{}, start_[2]{}, legStart_[2]{}, right_[2]{}, left_[2]{};
   uint32_t sampleAt_ = 0;
   int64_t sampleCount_[2]{};
-  float rpm_[2]{}, peakRpm_[2]{}, peakAmps_ = 0;
-  bool hasPeakAmps_ = false;
+  float rpm_[2]{}, peakRpm_[2]{};
 };
 }

@@ -1,5 +1,5 @@
 #pragma once
-#include "Hardware.h"
+#include "BatteryMonitor.h"
 
 namespace bk370 {
 enum class Direction : int8_t { Left = -1, Right = 1 };
@@ -363,7 +363,7 @@ struct Status {
   float countsPerSecond[2]{}, wheelMps[2]{}, maxMps = 0;
   uint16_t mv = 0;
   float amps = 0;
-  bool currentValid = false;
+  bool currentValid = false, hasIna226 = false;
   uint32_t remainingMs = 0;
   Mode mode = Mode::Idle;
   LightTest lightTest = LightTest::Off;
@@ -371,10 +371,13 @@ struct Status {
   bool ready = false, powered = false, locked = false, centered = false, calibrated = false, fault = false, servo = false;
 };
 
+template<bool UseIna226>
 class Carriage {
  public:
   void begin() {
-    motors.begin(); battery.begin(); servo.begin();
+    motors.begin();
+    if constexpr (UseIna226) battery.begin();
+    servo.begin();
     for (uint8_t pin : {RedPin, GreenPin, StrobePin}) {
       pinMode(pin, OUTPUT);
       digitalWrite(pin, LOW);
@@ -392,20 +395,23 @@ class Carriage {
       motors.stop(now, "command · brake LOW/LOW");
       test_ = LightTest::Off;
       if (cmd.op == Op::Stop) {
-        if (battery.allowed(now)) servo.close(now);
+        if (powerAllowed(now)) servo.close(now);
         else servo.off();
       }
       return true;
     }
     if (cmd.op == Op::Zero) return motors.zero(now);
-    if (cmd.op == Op::Reset) return battery.reset(now);
+    if (cmd.op == Op::Reset) {
+      if constexpr (UseIna226) return battery.reset(now);
+      return false;
+    }
     if (cmd.op == Op::Speed) { motors.setSpeed(cmd.speed, now); return true; }
     if (cmd.op == Op::Servo && cmd.value == 0) {
-      if (battery.allowed(now)) servo.close(now);
+      if (powerAllowed(now)) servo.close(now);
       else servo.off();
       return true;
     }
-    if (!battery.ready(now) || motors.fault) return false;
+    if (!powerReady(now) || motors.fault) return false;
     if (cmd.op == Op::LightTest) {
       if (motors.mode != Mode::Idle || servo.enabled || servo.moving(now) ||
           cmd.value < uint8_t(LightTest::Red) || cmd.value > uint8_t(LightTest::Strobe)) return false;
@@ -425,8 +431,8 @@ class Carriage {
     }
   }
   void tick(uint32_t now, bool linkOk) {
-    battery.tick(now);
-    const bool permit = linkOk && battery.allowed(now);
+    if constexpr (UseIna226) battery.tick(now);
+    const bool permit = linkOk && powerAllowed(now);
     if (!permit) servo.off();
     motors.tick(now, permit);
     if (motors.fault) servo.off();
@@ -455,19 +461,31 @@ class Carriage {
     }
     s.maxMps = motors.maxSpeedMps();
     s.lightTest = test_;
-    s.mv = battery.valid ? battery.millivolts : 0;
-    s.amps = battery.amps;
-    s.currentValid = battery.currentValid;
+    s.hasIna226 = UseIna226;
+    if constexpr (UseIna226) {
+      s.mv = battery.valid ? battery.millivolts : 0;
+      s.amps = battery.amps;
+      s.currentValid = battery.currentValid;
+      s.locked = battery.locked;
+    }
     s.mode = motors.mode; s.speed = motors.speed; s.program = motors.program;
     s.remainingMs = motors.remainingMs(now);
     s.servo = servo.enabled; s.servoTarget = servo.angle; s.servoSelected = servo.selected;
-    s.ready = DriveCommissioned && battery.ready(now) && motors.encodersReady && !motors.fault;
-    s.powered = battery.allowed(now) && !motors.fault;
-    s.locked = battery.locked; s.fault = motors.fault;
+    s.ready = DriveCommissioned && powerReady(now) && motors.encodersReady && !motors.fault;
+    s.powered = powerAllowed(now) && !motors.fault;
+    s.fault = motors.fault;
     s.centered = motors.centered; s.calibrated = motors.calibrated();
     return s;
   }
  private:
+  bool powerAllowed(uint32_t now) const {
+    if constexpr (UseIna226) return battery.allowed(now);
+    return true;
+  }
+  bool powerReady(uint32_t now) const {
+    if constexpr (UseIna226) return battery.ready(now);
+    return true;
+  }
   bool startProgram(uint8_t id, uint32_t now) {
     if (!motors.startProgram(id, now)) return false;
     if (!servo.enabled && !servo.cycle(servo.selected, now)) {
