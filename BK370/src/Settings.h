@@ -20,8 +20,8 @@ struct MotorSettings {
 constexpr float WheelDiameterMm = 70.0f;
 constexpr float WheelCircumferenceMm = WheelDiameterMm * 3.14159265358979323846f;
 constexpr MotorSettings Motors[2] = {
-    {1, 2, 5, 4, false, false, 0, 1.0f, 0, WheelCircumferenceMm, 0},  // M1A, M1B, encoder A, B
-    {42, 41, 7, 6, false, true, 0, 1.0f, 0, WheelCircumferenceMm, 0}  // M2A, M2B, encoder A, B; inverted encoder sign
+    {1, 2, 5, 4, false, true, 0, 1.0f, 0, WheelCircumferenceMm, 0},  // M1A, M1B, encoder A, B
+    {42, 41, 7, 6, true, false, 0, 1.0f, 0, WheelCircumferenceMm, 0}  // M2A, M2B, encoder A, B
 };
 constexpr float CountsPerMeter[2] = {Motors[0].effectiveCountsPerMeter(), Motors[1].effectiveCountsPerMeter()};
 constexpr float MetersPerCount[2] = {
