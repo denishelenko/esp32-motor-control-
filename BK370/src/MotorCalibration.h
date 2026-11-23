@@ -33,6 +33,7 @@ th:first-child{text-align:left}small{color:#d1dacd}
 <div class="buttons"><button data-direction="left" disabled>← Вліво</button><button data-direction="right" disabled>Вправо →</button></div>
 <button id="stop">СТОП</button>
 <p id="status" role="status">Підключення до ESP32…</p>
+<p id="warning" role="status" style="color:#ffd08a"></p>
 <table><thead><tr><th scope="col">Параметр</th><th scope="col">M1</th><th scope="col">M2</th></tr></thead>
 <tbody><tr><th scope="row">Швидкість, об/хв</th><td id="rpm0">—</td><td id="rpm1">—</td></tr>
 <tr><th scope="row">Макс. швидкість, об/хв</th><td id="peakRpm0">—</td><td id="peakRpm1">—</td></tr>
@@ -40,7 +41,8 @@ th:first-child{text-align:left}small{color:#d1dacd}
 <tr><th scope="row">Поточні відліки</th><td id="count0">—</td><td id="count1">—</td></tr>
 <tr><th scope="row">Ціль на хід</th><td id="goal0">—</td><td id="goal1">—</td></tr>
 <tr><th scope="row">Пройдено від старту, відл.</th><td id="offset0">—</td><td id="offset1">—</td></tr>
-<tr><th scope="row">Похибка після гальмування, відл.</th><td id="error0">—</td><td id="error1">—</td></tr></tbody></table>
+<tr><th scope="row">Похибка після гальмування, відл.</th><td id="error0">—</td><td id="error1">—</td></tr>
+<tr><th scope="row">Похибка по колесу, мм</th><td id="errorMm0">—</td><td id="errorMm1">—</td></tr></tbody></table>
 <p><small>Перевір кількість обертів і мітки фізично. Ціль обчислюється за поточними параметрами енкодерів.</small></p>
 </main>
 <script>
@@ -57,6 +59,7 @@ async function poll(){
   const response=await fetch("/status?run="+requestedToken,{cache:"no-store"});
   if(!response.ok)throw Error();
   const state=await response.json();
+  el("warning").textContent=state.directionWarning||"";
   if(token===requestedToken){
    active=state.active;
    readyMotors=state.readyMotors;
@@ -68,6 +71,7 @@ async function poll(){
   for(const key of ["rpm","peakRpm"])
    for(let i=0;i<2;i++)el(key+i).textContent=format(state[key]?.[i],1);
   for(let i=0;i<2;i++)el("secondsPerTurn"+i).textContent=format(state.secondsPerTurn?.[i],2);
+  for(let i=0;i<2;i++)el("errorMm"+i).textContent=format(state.errorMm?.[i],2);
  }catch{readyMotors=0;el("status").textContent="Немає зв’язку з ESP32";}
  updateButtons();
  setTimeout(poll,300);
@@ -245,6 +249,7 @@ class MotorCalibration {
       start_[i] = sampleCount_[i] = count_[i];
       changedAt_[i] = now;
       braking_[i] = false;
+      directionWarning_[i] = false;
       peakRpm_[i] = secondsPerTurn_[i] = 0;
       goal_[i] = selected(i) ? llround(turns * countsPerTurn(i)) : 0;
       maxDuty_[i] = lroundf(1023 * min(speed / 100.0f, constrain(Motors[i].dutyMultiplier, 0.0f, 1.0f)));
@@ -280,13 +285,14 @@ class MotorCalibration {
       finish(Phase::Failed, "Вичерпано час руху");
       return;
     }
-    const int64_t progress[2] = {direction_ * (count_[0] - start_[0]), direction_ * (count_[1] - start_[1])};
+    const int64_t signedProgress[2] = {direction_ * (count_[0] - start_[0]), direction_ * (count_[1] - start_[1])};
+    const int64_t progress[2] = {llabs(signedProgress[0]), llabs(signedProgress[1])};
     bool settled = true;
     for (unsigned i = 0; i < 2; ++i) {
       if (!selected(i)) continue;
-      if (progress[i] < -6) {
-        finish(Phase::Failed, i == 0 ? "M1: відліки йдуть у протилежний бік" : "M2: відліки йдуть у протилежний бік");
-        return;
+      if (signedProgress[i] < -6 && !directionWarning_[i]) {
+        directionWarning_[i] = true;
+        log("WARNING", "M%u encoder sign reversed; calibration continues using absolute displacement", i + 1);
       }
       settled &= serviceWheel(i, progress[i], now);
       if (!active()) return;
@@ -344,11 +350,15 @@ class MotorCalibration {
     JsonDocument d;
     d["readyMotors"] = readyMotors();
     d["active"] = active();
+    d["directionWarning"] = directionWarning_[0] && directionWarning_[1] ? "M1 і M2: знак енкодера протилежний команді. Тест продовжується." :
+      directionWarning_[0] ? "M1: знак енкодера протилежний команді. Тест продовжується." :
+      directionWarning_[1] ? "M2: знак енкодера протилежний команді. Тест продовжується." : "";
     d["message"] = !readyMotors() && phase_ == Phase::Idle ? "Помилка енкодерів або виходів ШІМ" : message_;
     auto counts = d["count"].to<JsonArray>();
     auto goals = d["goal"].to<JsonArray>();
     auto offsets = d["offset"].to<JsonArray>();
     auto errors = d["error"].to<JsonArray>();
+    auto errorsMm = d["errorMm"].to<JsonArray>();
     auto rpm = d["rpm"].to<JsonArray>();
     auto peaks = d["peakRpm"].to<JsonArray>();
     auto seconds = d["secondsPerTurn"].to<JsonArray>();
@@ -359,7 +369,7 @@ class MotorCalibration {
       if (token_ && selected(i)) {
         peaks.add(peakRpm_[i]);
         goals.add(goal_[i]);
-        offsets.add(phase_ == Phase::Done ? direction_ * stoppedProgress_[i] : count_[i] - start_[i]);
+        offsets.add(phase_ == Phase::Done ? stoppedProgress_[i] : llabs(count_[i] - start_[i]));
       } else {
         peaks.add(nullptr);
         goals.add(nullptr);
@@ -367,8 +377,14 @@ class MotorCalibration {
       }
       if (phase_ == Phase::Done && selected(i)) seconds.add(secondsPerTurn_[i]);
       else seconds.add(nullptr);
-      if (phase_ == Phase::Done && selected(i)) errors.add(stoppedProgress_[i] - goal_[i]);
-      else errors.add(nullptr);
+      if (phase_ == Phase::Done && selected(i)) {
+        const int64_t error = stoppedProgress_[i] - goal_[i];
+        errors.add(error);
+        errorsMm.add(error * WheelCircumferenceMm / countsPerTurn(i));
+      } else {
+        errors.add(nullptr);
+        errorsMm.add(nullptr);
+      }
     }
     sendJson(200, d);
   }
@@ -386,6 +402,7 @@ class MotorCalibration {
   Phase phase_ = Phase::Idle;
   const char *message_ = "Оберіть кількість обертів";
   bool encoderReady_[2]{}, pwmReady_[2]{}, braking_[2]{};
+  bool directionWarning_[2]{};
   uint32_t brakeAt_[2]{};
   uint8_t selected_ = 0;
   int direction_ = 1;
