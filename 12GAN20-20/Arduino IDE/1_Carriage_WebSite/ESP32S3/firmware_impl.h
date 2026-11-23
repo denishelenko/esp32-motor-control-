@@ -52,7 +52,7 @@ bool motorHardwareReady = false;
 bool networkReady = false;
 int16_t motionOwner = -1;
 uint32_t ownerSeenAt = 0;
-void stopAll(bool keepServo = false);
+void stopAll();
 
 constexpr float limitM() { return TRACK_LENGTH_M * 0.5f - SAFE_MARGIN_M; }
 const char *modeName() {
@@ -67,6 +67,35 @@ const char *modeName() {
 
 MotorOutput localMotor;
 
+static bool servoStrobeActive = false;
+static uint32_t servoStrobeStartedAt = 0;
+static uint32_t servoMotionStartedAt = 0, servoMotionMs = 0;
+
+static void setServoStrobe(uint8_t commandAngle, bool written = true) {
+  static uint8_t previousAngle = 0;
+  if (!written) {
+    servoMotionMs = 0;
+  } else if (commandAngle != previousAngle) {
+    const uint32_t angleDelta = abs(int(commandAngle) - int(previousAngle));
+    servoMotionStartedAt = millis();
+    servoMotionMs = (angleDelta * SERVO_TRAVEL_90_MS + 89) / 90;
+    previousAngle = commandAngle;
+  }
+
+  const bool active = written && commandAngle > 0 && commandAngle < 180;
+  if (active == servoStrobeActive) return;
+  servoStrobeActive = active;
+  servoStrobeStartedAt = millis();
+  digitalWrite(MOSFET_PIN, active ? HIGH : LOW);
+}
+
+static void updateServoStrobe(uint32_t now) {
+  if (servoStrobeActive) {
+    const bool on = ((now - servoStrobeStartedAt) / LIGHT_STROBE_HALF_PERIOD_MS) % 2 == 0;
+    digitalWrite(MOSFET_PIN, on ? HIGH : LOW);
+  }
+}
+
 void writeLights(bool redEnabled) {
   if (redOutputOn != redEnabled) {
     redOutputOn = redEnabled;
@@ -75,8 +104,9 @@ void writeLights(bool redEnabled) {
 }
 
 void updateLight(uint32_t now) {
-  const bool motorIsMoving = localMotor.applied() != 0;
-  if (!motorIsMoving) {
+  if (servoMotionMs && now - servoMotionStartedAt >= servoMotionMs) servoMotionMs = 0;
+  const bool moving = localMotor.applied() != 0 || servoMotionMs != 0;
+  if (!moving) {
     lightStrobeActive = false;
     writeLights(false);
     digitalWrite(LIGHT_GREEN_PIN, HIGH);
@@ -110,7 +140,10 @@ void writeServoPosition(uint8_t physicalAngle) {
   physicalAngle = constrain(physicalAngle, SERVO_CLOSED_ANGLE, SERVO_PHYSICAL_MAX_ANGLE);
   servoCurrentAngle = physicalAngle;
   const uint8_t commandAngle = physicalAngle * SERVO_COMMAND_PER_PHYSICAL_DEGREE;
-  if (!servoWriteAngle(commandAngle)) {
+  if (servoWriteAngle(commandAngle)) {
+    setServoStrobe(commandAngle);
+  } else {
+    setServoStrobe(0, false);
     servoCycleEnabled = false;
     servoDetach();
     digitalWrite(SERVO_SIGNAL_PIN, LOW);
@@ -236,11 +269,11 @@ void broadcastState() {
   String message = stateJson();
   wsServer.broadcastTXT(message);
 }
-void stopAll(bool keepServo) {
+void stopAll() {
   motionOwner = -1;
   mode = Mode::Idle; activeProgram = 0; programWaiting = false; calibrationStopAt = 0; targetM = positionM;
   setDrive("stop", 0);
-  if (!keepServo) stopServoCycle();
+  stopServoCycle();
   broadcastState();
 }
 
@@ -373,7 +406,7 @@ void handleWs(uint8_t client, WStype_t type, uint8_t *payload, size_t length) {
     // A stop command never depends on a speed field.
     if (strcmp(t, "stop") && !(strcmp(t, "jog") == 0 && strcmp(d["direction"] | "", "stop") == 0)) return;
   }
-  if (!strcmp(t, "stop")) { stopAll(true); return; }
+  if (!strcmp(t, "stop")) { stopAll(); return; }
   if (!strcmp(t, "zero")) { stopAll(); positionM = targetM = 0; broadcastState(); return; }
   if (!strcmp(t, "target")) {
     if (!motorOnline() || !d["position"].is<float>() || !isfinite(d["position"].as<float>())) return;
@@ -408,7 +441,8 @@ void handleWs(uint8_t client, WStype_t type, uint8_t *payload, size_t length) {
   }
   if (!strcmp(t, "servo")) {
     const bool enabled = d["enabled"] | true;
-    if (!enabled) {
+    const int angle = d["angle"] | int(SERVO_DEFAULT_OPEN_ANGLE);
+    if (!enabled || angle == 0 || angle == 180) {
       stopServoCycle();
     } else {
       const uint8_t requestedAngle = constrain(d["angle"] | SERVO_DEFAULT_OPEN_ANGLE,
@@ -444,18 +478,53 @@ void handleWs(uint8_t client, WStype_t type, uint8_t *payload, size_t length) {
   }
 }
 
+#ifdef SINGLE_CARRIAGE_HOME_WIFI
+uint32_t homeWifiAttemptAt = 0;
+
+void updateHomeWifi() {
+  const bool connected = WiFi.status() == WL_CONNECTED;
+  if (connected != networkReady) {
+    networkReady = connected;
+    if (connected) {
+      if (MDNS.begin(MDNS_HOSTNAME)) MDNS.addService("http", "tcp", HTTP_PORT);
+      Serial.printf("[HOME] Connected, site: http://%s.local/ or http://%s/\n",
+                    MDNS_HOSTNAME, WiFi.localIP().toString().c_str());
+    } else {
+      stopAll();
+      MDNS.end();
+      Serial.println("[HOME] Wi-Fi disconnected; carriage stopped");
+    }
+  }
+  const uint32_t now = millis();
+  if (!connected && now - homeWifiAttemptAt >= 30000) {
+    homeWifiAttemptAt = now;
+    WiFi.reconnect();
+  }
+}
+#endif
+
 void setup() {
   Serial.begin(SERIAL_BAUD); randomSeed(micros());
+  pinMode(MOSFET_PIN, OUTPUT);
+  digitalWrite(MOSFET_PIN, LOW);
   pinMode(LIGHT_RED_PIN, OUTPUT); pinMode(LIGHT_GREEN_PIN, OUTPUT);
   digitalWrite(LIGHT_RED_PIN, LOW); digitalWrite(LIGHT_GREEN_PIN, HIGH);
   printBootInfo();
-  Serial.println("[START] Standalone: motor + servo + RGB status (green idle / red strobe while moving)");
+  Serial.println("[START] Standalone: motor + servo + status lights (green idle / red strobe during motion / MOSFET follows servo)");
   motorHardwareReady = localMotor.begin();
   if (!motorHardwareReady) Serial.println("[ERROR] Motor PWM init failed; motion disabled");
   digitalWrite(SERVO_SIGNAL_PIN, LOW); pinMode(SERVO_SIGNAL_PIN, OUTPUT);
   // The servo receives its first pulse when the user starts its cycle.
   Serial.println(PINOUT_SERIAL_TEXT);
   WiFi.persistent(false);
+#ifdef SINGLE_CARRIAGE_HOME_WIFI
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
+  homeWifiAttemptAt = millis();
+  WiFi.begin(HOME_WIFI_SSID, HOME_WIFI_PASSWORD);
+  Serial.println("[HOME] Connecting to the configured 2.4 GHz network...");
+#else
   WiFi.mode(WIFI_AP);
   WiFi.setSleep(false);
   Serial.println("[WIFI] Starting Motor-Control AP...");
@@ -465,19 +534,24 @@ void setup() {
   Serial.printf("[WIFI] %s IP=%s channel=%ld\n", networkReady ? "OK" : "FAILED",
     WiFi.softAPIP().toString().c_str(), static_cast<long>(WiFi.channel()));
   if (MDNS.begin(MDNS_HOSTNAME)) MDNS.addService("http", "tcp", HTTP_PORT);
+  Serial.println("Open http://motor-control.local or http://192.168.4.1");
+#endif
   httpServer.on("/", [](){ httpServer.send_P(200, "text/html; charset=utf-8", WEB_UI); });
   httpServer.onNotFound([](){ httpServer.sendHeader("Location", "/"); httpServer.send(302, "text/plain", ""); });
   httpServer.begin(); wsServer.begin(); wsServer.onEvent(handleWs);
-  Serial.println("Open http://motor-control.local or http://192.168.4.1");
 }
 
 void loop() {
+#ifdef SINGLE_CARRIAGE_HOME_WIFI
+  updateHomeWifi();
+#endif
   httpServer.handleClient(); wsServer.loop();
   updateMotion();
   const uint32_t now = millis();
   localMotor.tick(now);
   updateLight(now);
   updateServoCycle();
+  updateServoStrobe(millis());
   if (now - lastBroadcastAt >= UI_BROADCAST_INTERVAL_MS) broadcastState();
   if (now - lastSerialHeartbeatAt >= 3000) {
     lastSerialHeartbeatAt = now;

@@ -34,6 +34,7 @@ uint32_t lastLightToggleAt = 0;
 #include "controller_hardware.h"
 #include "controller_estimator.h"
 #include "controller_motion.h"
+#include "carriage_commands.h"
 
 bool nodeSeenRecently() { return nodeKnown && millis() - nodeSeenAt < NODE_LINK_TIMEOUT_MS; }
 bool nodeOnline() {
@@ -140,7 +141,7 @@ void handleUiCommand(const uint8_t *payload, size_t length) {
     carriagesLinked = nodeOnline() && (doc["enabled"] | false);
   } else if (!strcmp(type, "speed")) {
     const uint8_t speed = constrain(doc["speed"] | 50, 1, 100);
-    applyToSelected(selected, [&](uint8_t i) { carriages[i].speed = speed; });
+    applyToSelected(selected, [&](uint8_t i) { MotorGroup(i).setSpeed(speed); });
   } else if (!strcmp(type, "timed_test")) {
     // Physical distance is measured by the user; the browser never supplies metres.
     const char *direction = doc["direction"] | "";
@@ -152,7 +153,9 @@ void handleUiCommand(const uint8_t *payload, size_t length) {
     carriagesLinked = false;
     stopCarriage(0);
     stopCarriage(1);
-    startTimedTest(selected, sign, speed, durationMs);
+    MotorGroup motor(selected);
+    motor.setSpeed(speed);
+    motor.moveFor(sign > 0 ? Direction::Right : Direction::Left, durationMs);
   } else if (!strcmp(type, "target")) {
     const float target = doc["position"] | 0.0f;
     if (!isfinite(target)) return;
@@ -173,8 +176,8 @@ void handleUiCommand(const uint8_t *payload, size_t length) {
       startProgram(i);
     });
   } else if (!strcmp(type, "servo")) {
-    const uint8_t angle = doc["angle"] | SERVO_DEFAULT_ANGLE;
-    const bool enabled = doc["enabled"] | true;
+    const int angle = doc["angle"] | int(SERVO_DEFAULT_ANGLE);
+    const bool enabled = (doc["enabled"] | true) && angle != 0 && angle != 180;
     if (enabled && angle != 45 && angle != 90) return;
     applyToSelected(selected, [&](uint8_t i) {
       CarriageState &c = carriages[i];
@@ -202,7 +205,7 @@ void handleUiCommand(const uint8_t *payload, size_t length) {
       }
     });
   } else if (!strcmp(type, "stop")) {
-    applyToSelected(selected, [&](uint8_t i) { stopCarriage(i, true); });
+    applyToSelected(selected, [&](uint8_t i) { stopCarriage(i); });
   } else if (!strcmp(type, "zero")) {
     applyToSelected(selected, [&](uint8_t i) { carriages[i].position = 0; carriages[i].target = 0; stopCarriage(i); });
   }
@@ -231,6 +234,8 @@ void setup() {
   if (!controllerSession) controllerSession = 1;
   pinMode(MOTOR_IN1_PIN, OUTPUT); pinMode(MOTOR_IN2_PIN, OUTPUT);
   digitalWrite(MOTOR_IN1_PIN, LOW); digitalWrite(MOTOR_IN2_PIN, LOW);
+  pinMode(MOSFET_PIN, OUTPUT);
+  digitalWrite(MOSFET_PIN, LOW);
   pinMode(LIGHT_RED_PIN, OUTPUT); pinMode(LIGHT_GREEN_PIN, OUTPUT);
   pinMode(MOTOR_PWM_PIN, OUTPUT);
   digitalWrite(MOTOR_PWM_PIN, LOW);
@@ -247,7 +252,7 @@ void setup() {
     Serial.println("[CARRIAGE 1] Wi-Fi station initialization failed");
     return;
   }
-  if (!carriageRadio.begin(WIFI_IF_STA, WIFI_CHANNEL)) {
+  if (!carriageRadio.begin(WIFI_IF_STA, 0)) {
     Serial.println("[CARRIAGE 1] ESP-NOW unavailable");
   }
   httpServer.on("/", HTTP_GET, [] { httpServer.send_P(200, "text/html; charset=utf-8", WEB_UI); });
@@ -286,8 +291,8 @@ void loop() {
   }
   updateCarriage(0); updateCarriage(1);
   updateLocalMotor();
-  updateLights(millis());
   writeLocalServo(carriages[0].servoPosition);
+  updateLights(millis());
   const uint32_t now = millis();
   if (now - lastCommandSentAt >= COMMAND_INTERVAL_MS) {
     lastCommandSentAt = now;

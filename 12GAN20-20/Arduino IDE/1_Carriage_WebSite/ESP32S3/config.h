@@ -16,22 +16,24 @@ constexpr uint16_t HTTP_PORT = 80;
 constexpr uint16_t WEBSOCKET_PORT = 81;
 
 // One motor per bridge. Fan out each direction signal to both logic inputs.
-constexpr char PINOUT_SERIAL_TEXT[] = "[PINS] 2=IN1 A+B, 1=IN2 A+B, 42=PWMA+PWMB, 15=TXS A1, 16=RED, 17=GREEN";
-constexpr uint8_t MOTOR_IN1_PIN = 2;       // TB6612FNG AIN1 and BIN1
-constexpr uint8_t MOTOR_IN2_PIN = 1;       // TB6612FNG AIN2 and BIN2
-constexpr bool MOTOR_DIRECTION_REVERSED = false;
+constexpr char PINOUT_SERIAL_TEXT[] = "[PINS] 1=AIN1+BIN1, 2=AIN2+BIN2, 42=PWMA+PWMB, 21=SERVO, 47=MOSFET PWM, 40=RED, 41=GREEN";
+constexpr uint8_t MOTOR_IN1_PIN = 1;       // TB6612FNG AIN1 and BIN1
+constexpr uint8_t MOTOR_IN2_PIN = 2;       // TB6612FNG AIN2 and BIN2
+constexpr bool MOTOR_DIRECTION_REVERSED = true;
 constexpr uint8_t MOTOR_PWM_PIN = 42;     // GPIO42 -> PWMA and PWMB
-constexpr uint8_t SERVO_SIGNAL_PIN = 15;   // TXS0108E A1; B1 to servo signal
-constexpr uint8_t LIGHT_RED_PIN = 16;
-constexpr uint8_t LIGHT_GREEN_PIN = 17;
+constexpr uint8_t SERVO_SIGNAL_PIN = 21;   // TXS0108E A1; B1 to servo signal
+constexpr uint8_t MOSFET_PIN = 47;         // Servo-controlled strobe on the MOSFET module
+constexpr uint8_t LIGHT_RED_PIN = 40;      // Red RGB channel through resistor
+constexpr uint8_t LIGHT_GREEN_PIN = 41;   // Green RGB channel through resistor
 
 // SERVOMY SDS2601-26G: power red from the 5 V regulator and brown from common GND.
 // UI angles are the real, physical angles of this particular mechanism.
-// Its electronics need a command twice as large: command 90° = physical 45°
-// and command 180° = physical 90°.
+// The installed servo uses a direct scale: command 45° = physical 45°
+// and command 90° = physical 90°.
+constexpr uint16_t SERVO_TRAVEL_90_MS = 350;  // Estimated travel at 90 degrees.
 constexpr uint8_t SERVO_CLOSED_ANGLE = 0;
 constexpr uint8_t SERVO_PHYSICAL_MAX_ANGLE = 90;
-constexpr uint8_t SERVO_COMMAND_PER_PHYSICAL_DEGREE = 2;
+constexpr uint8_t SERVO_COMMAND_PER_PHYSICAL_DEGREE = 1;
 constexpr uint8_t SERVO_DEFAULT_OPEN_ANGLE = 45;
 constexpr uint16_t SERVO_MIN_PULSE_US = 520;
 constexpr uint16_t SERVO_MAX_PULSE_US = 2520;
@@ -110,7 +112,7 @@ constexpr uint32_t RAMP_INTERVAL_MS = 10;
 constexpr int16_t RAMP_STEP = 24;
 
 constexpr bool safeOutputPin(uint8_t pin) {
-  return pin == 1 || pin == 2 || pin == 15 || pin == 16 || pin == 17 || pin == 42;
+  return pin == 1 || pin == 2 || pin == 47 || pin == 40 || pin == 21 || pin == 41 || pin == 42;
 }
 static_assert(safeOutputPin(MOTOR_IN1_PIN) && safeOutputPin(MOTOR_IN2_PIN) &&
               safeOutputPin(MOTOR_PWM_PIN),
@@ -130,9 +132,13 @@ static_assert(SPEED_MIN_PERCENT >= 1 && SPEED_MAX_PERCENT <= 100 &&
               SPEED_DEFAULT_PERCENT <= SPEED_MAX_PERCENT, "Invalid speed range");
 
 static_assert(safeOutputPin(LIGHT_RED_PIN) && safeOutputPin(LIGHT_GREEN_PIN) &&
+              safeOutputPin(MOSFET_PIN) &&
               LIGHT_RED_PIN != MOTOR_IN1_PIN &&
               LIGHT_RED_PIN != MOTOR_IN2_PIN && LIGHT_RED_PIN != SERVO_SIGNAL_PIN && LIGHT_RED_PIN != MOTOR_PWM_PIN &&
               LIGHT_GREEN_PIN != MOTOR_IN1_PIN &&
               LIGHT_GREEN_PIN != MOTOR_IN2_PIN && LIGHT_GREEN_PIN != SERVO_SIGNAL_PIN && LIGHT_GREEN_PIN != MOTOR_PWM_PIN &&
-              LIGHT_GREEN_PIN != LIGHT_RED_PIN,
+              LIGHT_GREEN_PIN != LIGHT_RED_PIN &&
+              MOSFET_PIN != MOTOR_IN1_PIN && MOSFET_PIN != MOTOR_IN2_PIN &&
+              MOSFET_PIN != MOTOR_PWM_PIN && MOSFET_PIN != SERVO_SIGNAL_PIN &&
+              MOSFET_PIN != LIGHT_RED_PIN && MOSFET_PIN != LIGHT_GREEN_PIN,
               "LED pin must not overlap motor/servo");

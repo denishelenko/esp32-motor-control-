@@ -21,10 +21,10 @@ constexpr char CONTROLLER_IP[] = "192.168.4.1";
 #error Select ESP32S3 Dev Module, not ESP32/ESP8266
 #endif
 constexpr char PINOUT_NAME[] = "ESP32-S3 N16R8";
-constexpr char PINOUT_SERIAL_TEXT[] = "[PINS] GPIO6=IN1 GPIO7=IN2 GPIO15=SERVO GPIO16=RED GPIO17=GREEN";
+constexpr char PINOUT_SERIAL_TEXT[] = "[PINS] GPIO6=IN1 GPIO7=IN2 GPIO21=SERVO GPIO16=RED GPIO17=GREEN";
 constexpr uint8_t MOTOR_IN1_PIN = 6;
 constexpr uint8_t MOTOR_IN2_PIN = 7;
-constexpr uint8_t SERVO_SIGNAL_PIN = 15;
+constexpr uint8_t SERVO_SIGNAL_PIN = 21;
 constexpr uint8_t LIGHT_RED_PIN = 16;
 constexpr uint8_t LIGHT_GREEN_PIN = 17;
 #elif defined(PINOUT_WEMOS_D1_MINI_PRO)
@@ -55,11 +55,11 @@ constexpr uint8_t LIGHT_GREEN_PIN = 13; // D7
 // brown to the same GND as ESP8266 and L298N. ESP8266 uses Servo.h, matching
 // the known working standalone myServo.write(angle) test.
 // UI angles are the real, physical angles of this particular mechanism.
-// Its electronics need a command twice as large: command 90° = physical 45°
-// and command 180° = physical 90°.
+// The installed servo uses a direct scale: command 45° = physical 45°
+// and command 90° = physical 90°.
 constexpr uint8_t SERVO_CLOSED_ANGLE = 0;
 constexpr uint8_t SERVO_PHYSICAL_MAX_ANGLE = 90;
-constexpr uint8_t SERVO_COMMAND_PER_PHYSICAL_DEGREE = 2;
+constexpr uint8_t SERVO_COMMAND_PER_PHYSICAL_DEGREE = 1;
 constexpr uint8_t SERVO_DEFAULT_OPEN_ANGLE = 45;
 constexpr uint16_t SERVO_MIN_PULSE_US = 520;
 constexpr uint16_t SERVO_MAX_PULSE_US = 2520;
@@ -132,12 +132,13 @@ constexpr uint32_t UI_BROADCAST_INTERVAL_MS = 50;
 constexpr uint32_t UI_COMMAND_LEASE_MS = 2000;
 constexpr uint32_t REVERSAL_PAUSE_MS = 50;
 constexpr uint32_t SERIAL_BAUD = 115200;
+constexpr bool MOTOR_DIRECTION_REVERSED = true;
 constexpr uint32_t RAMP_INTERVAL_MS = 10;
 constexpr int16_t RAMP_STEP = 24;
 
 constexpr bool safeOutputPin(uint8_t pin) {
 #if defined(PINOUT_ESP32_S3)
-  return pin == 4 || pin == 5 || pin == 6 || pin == 7 || pin == 15 || pin == 16 || pin == 17;
+  return pin == 4 || pin == 5 || pin == 6 || pin == 7 || pin == 15 || pin == 16 || pin == 21 || pin == 17;
 #else
   return pin == 4 || pin == 5 || pin == 12 || pin == 13 || pin == 14 || pin == 16;
 #endif

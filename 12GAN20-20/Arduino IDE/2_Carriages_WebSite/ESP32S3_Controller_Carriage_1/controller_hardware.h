@@ -1,12 +1,46 @@
 #pragma once
+#include "event_debug.h"
 
 // ESP32-S3 motor, servo and indicator outputs.
 
+static bool servoStrobeActive = false;
+static uint32_t servoStrobeStartedAt = 0;
+static uint32_t servoMotionStartedAt = 0, servoMotionMs = 0;
+
+static void setServoStrobe(uint8_t commandAngle, bool written = true) {
+  static uint8_t previousAngle = 0;
+  if (!written) {
+    servoMotionMs = 0;
+  } else if (commandAngle != previousAngle) {
+    const uint32_t angleDelta = abs(int(commandAngle) - int(previousAngle));
+    servoMotionStartedAt = millis();
+    servoMotionMs = (angleDelta * SERVO_TRAVEL_90_MS[0] + 89) / 90;
+    previousAngle = commandAngle;
+  }
+
+  const bool active = written && commandAngle > 0 && commandAngle < 180;
+  if (active == servoStrobeActive) return;
+  servoStrobeActive = active;
+  servoStrobeStartedAt = millis();
+  digitalWrite(MOSFET_PIN, active ? HIGH : LOW);
+}
+
+static void updateServoStrobe(uint32_t now) {
+  if (servoStrobeActive) {
+    const bool on = ((now - servoStrobeStartedAt) / LIGHT_BLINK_HALF_PERIOD_MS) % 2 == 0;
+    digitalWrite(MOSFET_PIN, on ? HIGH : LOW);
+  }
+}
+
 void writeLocalMotor(int16_t pwm) {
   pwm = constrain(pwm, -int16_t(PWM_MAX), int16_t(PWM_MAX));
+  diagnosticMotor(pwm);
   if (MOTOR_DIRECTION_REVERSED) pwm = -pwm;
-  // Disable both bridges before changing direction.
-  ledcWrite(MOTOR_PWM_PIN, 0);
+  // Only disable PWM when the electrical direction changes.
+  static int8_t previousDirection = 0;
+  const int8_t direction = (pwm > 0) - (pwm < 0);
+  if (direction != previousDirection) ledcWrite(MOTOR_PWM_PIN, 0);
+  previousDirection = direction;
   digitalWrite(MOTOR_IN1_PIN, pwm > 0 ? HIGH : LOW);
   digitalWrite(MOTOR_IN2_PIN, pwm < 0 ? HIGH : LOW);
   ledcWrite(MOTOR_PWM_PIN, abs(pwm));
@@ -15,18 +49,20 @@ void writeLocalMotor(int16_t pwm) {
 void writeLights(bool redEnabled) {
   if (redOutputOn != redEnabled) {
     redOutputOn = redEnabled;
-    digitalWrite(LIGHT_RED_PIN, redEnabled ? HIGH : LOW);
+    diagnosticLed(LIGHT_RED_PIN, redEnabled, lightStrobeActive ? "MOTION_STROBE" : "IDLE");
   }
 }
 
 void updateLights(uint32_t now) {
-  if (localAppliedPwm == 0) {
+  updateServoStrobe(now);
+  if (servoMotionMs && now - servoMotionStartedAt >= servoMotionMs) servoMotionMs = 0;
+  const bool moving = localAppliedPwm != 0 || servoMotionMs != 0;
+  diagnosticLed(LIGHT_GREEN_PIN, !moving, moving ? "MOTION" : "IDLE");
+  if (!moving) {
     lightStrobeActive = false;
     writeLights(false);
-    digitalWrite(LIGHT_GREEN_PIN, HIGH);
     return;
   }
-  digitalWrite(LIGHT_GREEN_PIN, LOW);
   if (!lightStrobeActive) {
     lightStrobeActive = true;
     lastLightToggleAt = now;
@@ -64,9 +100,11 @@ void updateLocalMotor() {
 }
 
 void writeLocalServo(uint8_t physicalAngle) {
-  const uint8_t commandAngle = constrain(uint16_t(physicalAngle) * 2, uint16_t(0), uint16_t(180));
+  const uint8_t commandAngle = min(physicalAngle, uint8_t(180));
   const uint16_t pulseUs = SERVO_MIN_PULSE_US +
       (uint32_t(SERVO_MAX_PULSE_US - SERVO_MIN_PULSE_US) * commandAngle) / 180;
   const uint32_t duty = (uint64_t(pulseUs) * SERVO_FREQUENCY_HZ * 16384ULL + 500000ULL) / 1000000ULL;
-  ledcWrite(SERVO_SIGNAL_PIN, duty);
+  if (!diagnosticServo(physicalAngle, pulseUs)) return;
+  const bool written = ledcWrite(SERVO_SIGNAL_PIN, duty);
+  setServoStrobe(commandAngle, written);
 }

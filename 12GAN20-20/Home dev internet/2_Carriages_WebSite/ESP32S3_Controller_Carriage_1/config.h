@@ -7,27 +7,26 @@
 #endif
 
 // Home profile: the ESP32-S3 joins an existing 2.4 GHz access point.
-// That access point must use channel 6 for ESP-NOW on both carriages.
-constexpr char WIFI_SSID[] = "Motor-Control";
-constexpr char WIFI_PASSWORD[] = "motor8266";
+// Both carriages must connect to the same 2.4 GHz access point.
 constexpr uint8_t WIFI_CHANNEL = 6;
 constexpr uint32_t ESPNOW_GROUP_ID = 0x43525247UL;
 constexpr char MDNS_HOSTNAME[] = "motor-control";
 constexpr char OTA_HOSTNAME[] = "motor-control";
 constexpr char OTA_PASSWORD[] = "motor8266";
 constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 30000;
-constexpr uint32_t WIFI_ATTEMPT_TIMEOUT_MS = 5000;
+constexpr uint32_t WIFI_ATTEMPT_TIMEOUT_MS = 15000;
 constexpr uint16_t HTTP_PORT = 80;
 constexpr uint16_t WEBSOCKET_PORT = 81;
 
 // One motor per bridge. Both bridges receive the same direction and PWM.
-constexpr uint8_t MOTOR_IN1_PIN = 2;      // GPIO2 -> TB6612FNG AIN1 and BIN1
-constexpr uint8_t MOTOR_IN2_PIN = 1;      // GPIO1 -> TB6612FNG AIN2 and BIN2
-constexpr bool MOTOR_DIRECTION_REVERSED = false;
+constexpr uint8_t MOTOR_IN1_PIN = 1;      // GPIO1 -> TB6612FNG AIN1 and BIN1
+constexpr uint8_t MOTOR_IN2_PIN = 2;      // GPIO2 -> TB6612FNG AIN2 and BIN2
+constexpr bool MOTOR_DIRECTION_REVERSED = true;
 constexpr uint8_t MOTOR_PWM_PIN = 42;     // GPIO42 -> PWMA and PWMB
-constexpr uint8_t SERVO_SIGNAL_PIN = 15;  // GPIO15 -> TXS0108E A1; B1 -> servo signal.
-constexpr uint8_t LIGHT_RED_PIN = 16;     // GPIO16 -> RGB R through resistor
-constexpr uint8_t LIGHT_GREEN_PIN = 17;   // GPIO17 -> RGB G through resistor
+constexpr uint8_t SERVO_SIGNAL_PIN = 21;  // GPIO21 -> TXS0108E A1; B1 -> servo signal.
+constexpr uint8_t MOSFET_PIN = 47;         // Servo-controlled strobe on the MOSFET module
+constexpr uint8_t LIGHT_RED_PIN = 40;      // Red RGB channel through resistor
+constexpr uint8_t LIGHT_GREEN_PIN = 41;   // Green RGB channel through resistor
 constexpr uint8_t SERVO_DEFAULT_ANGLE = 45;  // Physical degrees; command is doubled.
 constexpr uint16_t SERVO_MIN_PULSE_US = 520;
 constexpr uint16_t SERVO_MAX_PULSE_US = 2520;
@@ -41,7 +40,10 @@ static_assert(MOTOR_PWM_PIN != MOTOR_IN1_PIN && MOTOR_PWM_PIN != MOTOR_IN2_PIN &
               LIGHT_RED_PIN != MOTOR_IN1_PIN && LIGHT_RED_PIN != MOTOR_IN2_PIN &&
               LIGHT_RED_PIN != SERVO_SIGNAL_PIN && LIGHT_RED_PIN != MOTOR_PWM_PIN &&
               LIGHT_GREEN_PIN != MOTOR_IN1_PIN && LIGHT_GREEN_PIN != MOTOR_IN2_PIN &&
-              LIGHT_GREEN_PIN != SERVO_SIGNAL_PIN && LIGHT_GREEN_PIN != MOTOR_PWM_PIN && LIGHT_GREEN_PIN != LIGHT_RED_PIN,
+              LIGHT_GREEN_PIN != SERVO_SIGNAL_PIN && LIGHT_GREEN_PIN != MOTOR_PWM_PIN && LIGHT_GREEN_PIN != LIGHT_RED_PIN &&
+              MOSFET_PIN != MOTOR_IN1_PIN && MOSFET_PIN != MOTOR_IN2_PIN &&
+              MOSFET_PIN != MOTOR_PWM_PIN && MOSFET_PIN != SERVO_SIGNAL_PIN &&
+              MOSFET_PIN != LIGHT_RED_PIN && MOSFET_PIN != LIGHT_GREEN_PIN,
               "ESP32-S3 output pins must be distinct");
 constexpr uint16_t PWM_MAX = 1023;
 constexpr uint16_t PWM_FREQUENCY_HZ = 1000;

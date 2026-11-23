@@ -45,12 +45,13 @@ class MotorOutput {
   void write(int16_t pwm) {
     if (!ready_) return;
     const int8_t direction = pwm > 0 ? 1 : pwm < 0 ? -1 : 0;
+    const int16_t physicalPwm = MOTOR_DIRECTION_REVERSED ? -pwm : pwm;
     if (!pwm || (written_ > 0) != (pwm > 0)) {
       // Disable the bridge BEFORE touching direction inputs.
       motorPwmWrite(0);
     }
-    digitalWrite(MOTOR_IN1_PIN, pwm > 0 ? HIGH : LOW);
-    digitalWrite(MOTOR_IN2_PIN, pwm < 0 ? HIGH : LOW);
+    digitalWrite(MOTOR_IN1_PIN, physicalPwm > 0 ? HIGH : LOW);
+    digitalWrite(MOTOR_IN2_PIN, physicalPwm < 0 ? HIGH : LOW);
     if (pwm) {
       motorPwmWrite(abs(pwm));
       lastDirection_ = direction;
