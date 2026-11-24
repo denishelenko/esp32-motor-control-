@@ -9,7 +9,7 @@ struct MotorSettings {
   float dutyMultiplier;
   float maxCountsPerSecond;
   float wheelCircumferenceMm;
-  int32_t countsPerWheelTurn;
+  double countsPerWheelTurn;
 
   constexpr float effectiveCountsPerMeter() const {
     if (countsPerMeter > 0) return countsPerMeter;
