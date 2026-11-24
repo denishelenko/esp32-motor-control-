@@ -19,20 +19,22 @@ struct MotorSettings {
 };
 constexpr float WheelDiameterMm = 70.0f;
 constexpr float WheelCircumferenceMm = WheelDiameterMm * 3.14159265358979323846f;
+// Calibrated carriage 1. The single-carriage firmware also uses this table.
 constexpr MotorSettings Motors[2] = {
     {1, 2, 5, 4, false, true, 0, 1.0f, 0, WheelCircumferenceMm, 0},  // M1A, M1B, encoder A, B
     {42, 41, 7, 6, true, false, 0, 1.0f, 0, WheelCircumferenceMm, 0}  // M2A, M2B, encoder A, B
 };
-constexpr float CountsPerMeter[2] = {Motors[0].effectiveCountsPerMeter(), Motors[1].effectiveCountsPerMeter()};
-constexpr float MetersPerCount[2] = {
-    CountsPerMeter[0] > 0 ? 1.0f / CountsPerMeter[0] : 0,
-    CountsPerMeter[1] > 0 ? 1.0f / CountsPerMeter[1] : 0,
+// Initial values for carriage 2. Verify its wiring and encoder signs separately.
+constexpr MotorSettings Carriage2Motors[2] = {
+    {1, 2, 5, 4, false, true, 0, 1.0f, 0, WheelCircumferenceMm, 0},
+    {42, 41, 7, 6, true, false, 0, 1.0f, 0, WheelCircumferenceMm, 0},
 };
-constexpr float WheelMaxMps[2] = {
-    Motors[0].maxCountsPerSecond * MetersPerCount[0],
-    Motors[1].maxCountsPerSecond * MetersPerCount[1],
-};
-constexpr float ConfiguredMaxSpeedMps = WheelMaxMps[0] < WheelMaxMps[1] ? WheelMaxMps[0] : WheelMaxMps[1];
+constexpr const MotorSettings (&motorSettingsFor(bool carriage2))[2] {
+  return carriage2 ? Carriage2Motors : Motors;
+}
+constexpr double NominalCountsPerWheel = 11.0 * 9.3 * 4.0;
+constexpr float NominalWheelRpm = 1452.0f;
+constexpr float NominalCountsPerSecond = NominalWheelRpm * NominalCountsPerWheel / 60.0;
 // Enable only after checking the power supply and hardware current limiting.
 // Position commands additionally require calibration and a fresh center.
 constexpr bool DriveCommissioned = false;
@@ -44,16 +46,43 @@ constexpr uint16_t EmptyMv = 10000, FullMv = 12400;
 constexpr uint16_t CutoffMv = EmptyMv + (FullMv - EmptyMv + 9) / 10;
 constexpr uint16_t RecoveryMv = CutoffMv + 260;
 constexpr uint8_t Channel = 6;
+constexpr char HOME_WIFI_SSID[] = "";
+constexpr char HOME_WIFI_PASSWORD[] = "";
 constexpr char SSID[] = "Motor-Control";
 constexpr char Password[] = "motor8266";
 // Enter the station MAC (printed on boot) of each board. Single ignores these.
 constexpr uint8_t MainMac[6] = {};
 constexpr uint8_t RemoteMac[6] = {};
 constexpr float LimitM = 8.0f;
+constexpr float SharedCableM = 20.0f;
+constexpr float SharedEdgeReserveM = 0.30f;
+constexpr float SharedCenterGapM = 1.0f;
+// Distance along the cable between the centres of the left and right wheels.
+constexpr float WheelbaseMm = 0.0f;  // Set after measuring the actual carriage.
+constexpr bool Motor1OnRight = true;
+constexpr float HalfWheelbaseM = WheelbaseMm / 2000.0f;
+constexpr float RequestedSharedTravelM = 9.0f;
+constexpr float SharedInnerM = SharedCenterGapM / 2 + HalfWheelbaseM;
+constexpr float MaxSharedOuterM = SharedCableM / 2 - SharedEdgeReserveM - HalfWheelbaseM;
+constexpr float SharedOuterM = SharedInnerM + RequestedSharedTravelM < MaxSharedOuterM ?
+    SharedInnerM + RequestedSharedTravelM : MaxSharedOuterM;
+static_assert(WheelbaseMm >= 0 && SharedOuterM > SharedInnerM, "Wheelbase leaves no shared cable travel");
+constexpr float SharedOverrunM = 0.08f;
+constexpr float SharedSurveyMps = 0.30f;
+constexpr float SharedBoundaryDecelMps2 = 0.8f;
+constexpr uint32_t ParkIdleDelayMs = 5 * 60 * 1000;
+constexpr float ParkToleranceM = 0.005f;
+constexpr uint8_t ParkCorrectionLimit = 3;
+constexpr float DefaultSpeedKmh = 5.0f;
+constexpr bool speedPreset(int kmh) { return kmh == 5 || kmh == 10 || kmh == 15; }
+constexpr float DutyRisePerSec = 0.50f;
+// Initial estimate of the duty needed to overcome drivetrain friction.
+constexpr float StartingDuty = 0.12f;
 constexpr uint32_t RampUpMs = 500, RampDownMs = 450;
 constexpr float SlowZoneM = 1.0f;
-constexpr float FinalBrakeM = 0.10f;
+constexpr float FinalBrakeM = 0.03f;
 constexpr float TargetToleranceM = 0.01f;
+constexpr float ProgramOvershootToleranceM = 0.05f;
 constexpr float ApproachMinScale = 0.12f;
 constexpr float ApproachBrakeMarginMps = 0.025f;
 constexpr float FinalCreepMps = 0.10f, FinalCreepDutyLimit = 0.30f;

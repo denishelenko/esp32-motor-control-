@@ -10,13 +10,24 @@
 #include "WebUi.h"
 
 namespace bk370 {
-constexpr uint32_t RadioMagic = 0x424b3704;
+constexpr uint32_t RadioMagic = 0x424b3708;
+#ifdef BK_HOME_WIFI
+constexpr bool HomeWifi = true;
+#else
+constexpr bool HomeWifi = false;
+#endif
+#ifdef BK_SHARED_CABLE
+constexpr bool SharedCable = true;
+#else
+constexpr bool SharedCable = false;
+#endif
+constexpr uint8_t PairProfile = (HomeWifi ? 1 : 0) | (SharedCable ? 2 : 0);
 constexpr uint32_t LinkTimeout = 600;
 struct Packet {
   uint32_t magic = RadioMagic, sender = 0, receiver = 0, sequence = 0;
   Command command{};
   Status status{};
-  uint8_t statusPacket = 0, accepted = 0;
+  uint8_t statusPacket = 0, accepted = 0, profile = PairProfile, pairPermit = 0;
 };
 static_assert(sizeof(Packet) <= 250, "ESP-NOW packet exceeds the v1 payload limit");
 struct Frame { Packet packet; uint32_t receivedAt; int8_t rssi; };
@@ -26,50 +37,54 @@ class Firmware {
  public:
   void begin() {
     Serial.begin(115200);
-    local_.begin();
+    local_.begin(SharedCable && Role != 0 ? (Role == 1 ? -1 : 1) : 0, Role == 2);
     boot_ = esp_random() | 1U;
-    WiFi.mode(Role == 2 ? WIFI_STA : WIFI_AP_STA);
+    WiFi.mode(HomeWifi || Role == 2 ? WIFI_STA : WIFI_AP_STA);
     WiFi.setSleep(false);
     const String mac = WiFi.macAddress();
     log("WIFI", "station MAC=%s", mac.c_str());
+    if constexpr (HomeWifi) {
+      WiFi.setAutoReconnect(true);
+      if (HOME_WIFI_SSID[0]) WiFi.begin(HOME_WIFI_SSID, HOME_WIFI_PASSWORD);
+      else log("WIFI", "set HOME_WIFI_SSID and HOME_WIFI_PASSWORD in Settings.h");
+    }
     if constexpr (Role != 2) {
-      WiFi.softAP(SSID, Password, Channel);
-      if (MDNS.begin("motor-control")) MDNS.addService("http", "tcp", 80);
-      server_.on("/", [this] { String html(WEB_HTML); html.replace("__SINGLE__", Role == 0 ? "true" : "false"); server_.send(200, "text/html; charset=utf-8", html); });
+      if constexpr (!HomeWifi) {
+        WiFi.softAP(SSID, Password, Channel);
+        startMdns();
+      }
+      server_.on("/", [this] { String html(WEB_HTML); html.replace("__SINGLE__", Role == 0 ? "true" : "false"); html.replace("__SHARED__", SharedCable && Role != 0 ? "true" : "false"); server_.send(200, "text/html; charset=utf-8", html); });
       server_.begin();
       socket_.begin();
       socket_.onEvent([this](uint8_t client, WStype_t type, uint8_t *data, size_t length) {
         if (type == WStype_TEXT) receiveUi(client, data, length);
-        else if (type == WStype_DISCONNECTED && client == owner_) {
-          stopBoth(millis(), "web disconnect");
-          owner_ = NoOwner;
-        }
+        else if (type == WStype_DISCONNECTED && client == owner_) owner_ = NoOwner;
       });
-      log("WEB", "http://motor-control.local/ or http://192.168.4.1/");
+      if constexpr (!HomeWifi) log("WEB", "http://motor-control.local/ or http://192.168.4.1/");
     }
     if constexpr (Role != 0) startRadio();
   }
 
   void tick() {
+    if constexpr (HomeWifi) serviceHomeWifi();
     if constexpr (Role != 2) {
       server_.handleClient();
       socket_.loop();
-      if (owner_ != NoOwner && millis() - ownerAt_ > 1500) {
-        stopBoth(millis(), "web timeout");
-        owner_ = NoOwner;
-      }
+      if (owner_ != NoOwner && millis() - ownerAt_ >= 500) owner_ = NoOwner;
     }
     const uint32_t now = millis();
-    if constexpr (Role != 0) receiveRadio(now);
-    const bool online = remoteBoot_ && now - radioAt_ < LinkTimeout;
+    if constexpr (Role != 0) {
+      if (networkReady()) receiveRadio(now);
+    }
+    const bool online = networkReady() && remoteBoot_ && now - radioAt_ < LinkTimeout;
     if constexpr (Role == 2) {
       if (!online) remoteArmed_ = false;
-      local_.tick(now, online && remoteArmed_);
+      local_.tick(now, online && remoteArmed_ && (!SharedCable || pairPermit_));
       if (now - sentAt_ >= 80) sendStatus(now);
     } else {
       if constexpr (Role == 1) {
         if (!online && wasOnline_) {
-          if (linked_) local_.stop(now, "linked carriage lost");
+          if (linked_ || SharedCable) stopBoth(now, "paired carriage lost");
           linked_ = false;
           pending_ = Command{};
           sequence_++;
@@ -77,7 +92,7 @@ class Firmware {
         if (pending_.op != Op::Idle && pending_.op != Op::Abort && now - pendingAt_ >= 500) {
           notifyClient("Немає підтвердження від другої каретки");
           if (pending_.op != Op::LightTest) {
-            if (linked_) local_.stop(now, "command acknowledgment timeout");
+            if (linked_ || SharedCable) stopBoth(now, "command acknowledgment timeout");
             linked_ = false;
             pending_ = Command{};
             pending_.op = Op::Abort;
@@ -88,7 +103,21 @@ class Firmware {
         }
         if (now - sentAt_ >= 45) sendCommand(now);
       }
-      local_.tick(now, true);
+      const bool permit = !SharedCable || Role == 0 || (online && remoteHandshake_ && remoteState_.powered);
+      local_.tick(now, permit);
+      if constexpr (Role == 1 && SharedCable) {
+        if (surveying_ && pending_.op != Op::Survey) {
+          const auto s = local_.status(now);
+          if (s.surveyed && remoteState_.surveyed) {
+            surveying_ = false;
+            notifyClient("Обидві каретки завершили калібрування.");
+          } else if ((s.mode != Mode::Survey && !s.surveyed) ||
+                     (remoteState_.mode != Mode::Survey && !remoteState_.surveyed)) {
+            stopBoth(now, "shared cable survey interrupted");
+            notifyClient("Калібрування перервано. Поверніть обидві каретки до крайніх міток.");
+          }
+        }
+      }
       if constexpr (Role == 1) {
         const auto localState = local_.status(now);
         if (linked_ && (!localState.powered || !remoteState_.powered)) {
@@ -96,11 +125,27 @@ class Firmware {
           linked_ = false;
         }
       }
+      if constexpr (Role == 1 && SharedCable) serviceParking(now, online && remoteHandshake_);
       if (now - broadcastAt_ >= 100) broadcast(now);
     }
     wasOnline_ = online;
   }
  private:
+  bool networkReady() const { return !HomeWifi || WiFi.status() == WL_CONNECTED; }
+  void startMdns() {
+    if (MDNS.begin("motor-control")) MDNS.addService("http", "tcp", 80);
+  }
+  void serviceHomeWifi() {
+    const IPAddress current = networkReady() ? WiFi.localIP() : IPAddress();
+    if (current == homeIp_) return;
+    if constexpr (Role != 2) {
+      if (homeIp_ != IPAddress()) MDNS.end();
+      if (current != IPAddress()) startMdns();
+    }
+    homeIp_ = current;
+    if (current == IPAddress()) log("WIFI", "home Wi-Fi disconnected");
+    else log("WIFI", "home Wi-Fi channel=%ld IP=%s", WiFi.channel(), current.toString().c_str());
+  }
   static constexpr uint8_t NoOwner = 255;
   static constexpr const uint8_t *peer() { return Role == 1 ? RemoteMac : MainMac; }
   static inline QueueHandle_t frames_ = nullptr;
@@ -109,13 +154,13 @@ class Firmware {
         memcmp(info->src_addr, peer(), 6) != 0) return;
     Frame frame{};
     memcpy(&frame.packet, data, sizeof(Packet));
-    if (frame.packet.magic != RadioMagic || !frame.packet.sender) return;
+    if (frame.packet.magic != RadioMagic || !frame.packet.sender || frame.packet.profile != PairProfile) return;
     frame.receivedAt = millis();
     frame.rssi = info->rx_ctrl ? info->rx_ctrl->rssi : -127;
     xQueueSend(frames_, &frame, 0);
   }
   void startRadio() {
-    if constexpr (Role == 2) esp_wifi_set_channel(Channel, WIFI_SECOND_CHAN_NONE);
+    if constexpr (Role == 2 && !HomeWifi) esp_wifi_set_channel(Channel, WIFI_SECOND_CHAN_NONE);
     const uint8_t empty[6]{};
     if (memcmp(peer(), empty, 6) == 0) {
       log("RADIO", "set station MAC addresses in Settings.h");
@@ -125,7 +170,7 @@ class Firmware {
     if (!frames_ || esp_now_init() != ESP_OK) return;
     esp_now_peer_info_t p{};
     memcpy(p.peer_addr, peer(), 6);
-    p.channel = Channel;
+    p.channel = HomeWifi ? 0 : Channel;
     p.ifidx = WIFI_IF_STA;
     radioReady_ = esp_now_add_peer(&p) == ESP_OK &&
       esp_now_register_recv_cb(onRadio) == ESP_OK;
@@ -133,7 +178,7 @@ class Firmware {
   }
   void send(Packet &packet, uint32_t now) {
     sentAt_ = now;
-    if (!radioReady_) return;
+    if (!radioReady_ || !networkReady()) return;
     packet.sender = boot_;
     packet.receiver = remoteBoot_;
     esp_now_send(peer(), reinterpret_cast<const uint8_t *>(&packet), sizeof(packet));
@@ -143,6 +188,7 @@ class Firmware {
     Packet p;
     p.sequence = sequence_;
     p.command = pending_;
+    p.pairPermit = local_.status(now).powered && remoteHandshake_ && now - radioAt_ < LinkTimeout;
     send(p, now);
   }
   void sendStatus(uint32_t now) {
@@ -172,6 +218,7 @@ class Firmware {
         }
         if (int32_t(p.sequence - appliedSeq_) < 0) continue;
         radioAt_ = receivedAt;
+        pairPermit_ = p.pairPermit;
         if (p.sequence == appliedSeq_) continue;
         appliedSeq_ = p.sequence;
         commandAccepted_ = p.command.op == Op::Idle || local_.execute(p.command, now);
@@ -180,7 +227,10 @@ class Firmware {
         if (!p.statusPacket || (p.receiver != 0 && p.receiver != boot_)) continue;
         remoteHandshake_ = p.receiver == boot_;
         if (remoteBoot_ != p.sender) {
-          if (linked_) local_.stop(now, "remote restarted");
+          if (linked_ || SharedCable) local_.stop(now, "remote restarted");
+          surveying_ = false;
+          parking_ = false;
+          armParking(false);
           linked_ = false;
           remoteBoot_ = p.sender;
           pending_ = Command{};
@@ -192,7 +242,7 @@ class Firmware {
         if (p.receiver == boot_ && p.sequence == sequence_ && pending_.op != Op::Idle) {
           if (!p.accepted) {
             notifyClient("Р”СЂСѓРіР° РєР°СЂРµС‚РєР° РІС–РґС…РёР»РёР»Р° РєРѕРјР°РЅРґСѓ");
-            if (linked_ && pending_.op != Op::LightTest) {
+            if ((linked_ || SharedCable) && pending_.op != Op::LightTest) {
               stopBoth(now, "remote rejected command");
               linked_ = false;
               continue;
@@ -213,11 +263,68 @@ class Firmware {
     serializeJson(d, payload);
     socket_.sendTXT(owner_, payload);
   }
-  void stopBoth(uint32_t now, const char *reason) {
-    local_.stop(now, reason);
+  void armParking(bool armed) {
+    parkArmed_ = armed;
+    parkCounting_ = false;
+  }
+  void serviceParking(uint32_t now, bool online) {
+    if (!parkArmed_ && !parking_) return;
+    const auto own = local_.status(now);
+    if (!online || !own.ready || !remoteState_.ready || !own.surveyed || !remoteState_.surveyed) {
+      if (parking_) stopBoth(now, "parking interlock");
+      armParking(false);
+      return;
+    }
+    if (parking_) {
+      if (pending_.op == Op::Park) return;
+      if ((own.mode != Mode::Park && !own.parked) || (remoteState_.mode != Mode::Park && !remoteState_.parked)) {
+        stopBoth(now, "parking incomplete");
+        notifyClient("Каретки не підтвердили зупинку на мітках. Перевірте позицію.");
+      } else if (own.parked && remoteState_.parked) {
+        parking_ = false;
+        log("PARK", "both carriages at their outer marks");
+      }
+      return;
+    }
+    if (pending_.op != Op::Idle || own.mode != Mode::Idle || remoteState_.mode != Mode::Idle) {
+      parkCounting_ = false;
+      return;
+    }
+    if (own.parked && remoteState_.parked) { armParking(false); return; }
+    if (!parkCounting_) {
+      parkCounting_ = true;
+      parkIdleAt_ = now;
+    }
+    if (now - parkIdleAt_ < ParkIdleDelayMs) return;
+    armParking(false);
+    Command command;
+    command.op = Op::Park;
+    if (!local_.execute(command, now)) {
+      notifyClient("Повернення до міток заблоковано.");
+      return;
+    }
+    parking_ = true;
+    pending_ = command;
+    pendingAt_ = now;
+    sequence_++;
+    sendCommand(now);
+    log("PARK", "returning both carriages to outer marks");
+  }
+  void stopBoth(uint32_t now, const char *reason, Op op = Op::Abort) {
+    surveying_ = false;
+    parking_ = false;
+    armParking(false);
+    if (op == Op::Stop) {
+      Command stop;
+      stop.op = op;
+      local_.execute(stop, now);
+    } else {
+      local_.stop(now, reason);
+    }
     if constexpr (Role == 1) {
       pending_ = Command{};
-      pending_.op = Op::Abort;
+      pending_.op = op;
+      pendingAt_ = now;
       sequence_++;
       sendCommand(now);
     }
@@ -234,7 +341,7 @@ class Firmware {
     if (!strcmp(type, "heartbeat")) return;
     const int selected = d["carriage"] | 1;
     if (selected < 1 || selected > (Role == 0 ? 1 : 2)) return;
-    const bool online = remoteHandshake_ && remoteBoot_ && now - radioAt_ < LinkTimeout;
+    const bool online = networkReady() && remoteHandshake_ && remoteBoot_ && now - radioAt_ < LinkTimeout;
     const bool requestingLink = !strcmp(type, "link");
     if (requestingLink) {
       if constexpr (Role == 1) linked_ = online && (d["enabled"] | false);
@@ -242,7 +349,8 @@ class Firmware {
     }
     Command c;
     const auto current = selected == 1 ? local_.status(now) : remoteState_;
-    c.speed = constrain(d["speed"] | int(current.speed), 0, 100);
+    const int speed = d["speed"] | int(current.speed);
+    if (speedPreset(speed)) c.speed = speed;
     const char *direction = d["direction"] | "";
     c.direction = !strcmp(direction, "right") ? 1 : !strcmp(direction, "left") ? -1 : 0;
     if (!strcmp(type, "stop")) c.op = Op::Stop;
@@ -271,6 +379,8 @@ class Firmware {
       c.op = Op::LightTest;
     }
     else if (!strcmp(type, "zero")) c.op = Op::Zero;
+    else if (!strcmp(type, "clear_reference") && SharedCable && Role == 1) c.op = Op::ClearReference;
+    else if (!strcmp(type, "survey") && SharedCable && Role == 1) c.op = Op::Survey;
     else if (!strcmp(type, "battery_reset")) c.op = Op::Reset;
     else if (!strcmp(type, "timed_test")) {
       c.op = Op::Timed;
@@ -278,9 +388,38 @@ class Firmware {
       if (c.duration != 1000 && c.duration != 2000 && c.duration != 5000 && c.duration != 10000) return;
     } else return;
 
+    if (c.op == Op::Stop && SharedCable) {
+      const bool schedulePark = !parking_ && !parkCounting_;
+      stopBoth(now, "shared stop", Op::Stop);
+      armParking(schedulePark);
+      return;
+    }
     if (c.op == Op::Stop && owner_ != client) { stopBoth(now, "stop from another client"); return; }
     if (c.op == Op::Timed && linked_) { stopBoth(now, "calibration"); linked_ = false; }
-    const bool synchronized = linked_ && c.op != Op::LightTest;
+    if constexpr (Role == 1 && SharedCable) {
+      const auto own = local_.status(now);
+      const bool run = c.op == Op::Start || c.op == Op::Program || c.op == Op::Target ||
+                       (c.op == Op::Jog && current.surveyed);
+      if ((run && (!online || !own.surveyed || !remoteState_.surveyed)) ||
+          (c.op == Op::Survey && (!online || !own.atOuterMark || !remoteState_.atOuterMark ||
+                                !own.ready || !remoteState_.ready || pending_.op != Op::Idle)) ||
+          (c.op == Op::ClearReference && (!online || own.mode != Mode::Idle || remoteState_.mode != Mode::Idle)) ||
+          (surveying_ && c.op != Op::MotorStop)) {
+        notifyClient("Потрібні зв’язок з обома каретками та правильний етап калібрування.");
+        return;
+      }
+      if (c.op == Op::MotorStop && surveying_) { stopBoth(now, "shared survey stopped"); return; }
+      if (c.op == Op::Timed) return;
+      if (c.op == Op::Target) {
+        const float side = selected == 1 ? -c.metres : c.metres;
+        if (!isfinite(side) || side < SharedInnerM || side > SharedOuterM) {
+          notifyClient("Ціль за межами зони цієї каретки.");
+          return;
+        }
+      }
+    }
+    const bool synchronized = c.op == Op::Survey || (linked_ && c.op != Op::LightTest &&
+        (!SharedCable || (c.op != Op::Jog && c.op != Op::Zero && c.op != Op::MotorStop && c.op != Op::ClearReference)));
     const bool local = selected == 1 || synchronized;
     const bool remote = selected == 2 || synchronized;
     if (remote && !online && c.op != Op::Stop) {
@@ -293,23 +432,39 @@ class Firmware {
       notifyClient("Р СѓС… Р·Р°Р±Р»РѕРєРѕРІР°РЅРѕ РЅР° РѕРґРЅС–Р№ С–Р· РєР°СЂРµС‚РѕРє");
       return;
     }
-    if (local && !local_.execute(c, now)) {
+    auto localCommand = c;
+    if (SharedCable && synchronized && c.op == Op::Target) localCommand.metres = -fabsf(c.metres);
+    const bool programCommand = c.op == Op::Start || c.op == Op::Program;
+    const bool manualCommand = c.op == Op::Target || c.op == Op::Jog || c.op == Op::MotorStop ||
+        c.op == Op::Servo || c.op == Op::Speed || c.op == Op::LightTest;
+    if (SharedCable && parking_ && (programCommand || manualCommand))
+      stopBoth(now, "parking interrupted by operator");
+    if (local && !local_.execute(localCommand, now)) {
       notifyClient("РљРѕРјР°РЅРґСѓ РІС–РґС…РёР»РµРЅРѕ. РџРµСЂРµРІС–СЂС‚Рµ Р¶РёРІР»РµРЅРЅСЏ, РєР°Р»С–Р±СЂСѓРІР°РЅРЅСЏ С‚Р° СЃС‚Р°РЅ РїСЂРёРІРѕРґС–РІ.");
       if (synchronized) stopBoth(now, "local rejected command");
       return;
     }
+    if (SharedCable && (programCommand || manualCommand))
+      armParking(true);
     if (remote) {
+      if (c.op == Op::Survey) surveying_ = true;
+      if (SharedCable && synchronized && c.op == Op::Target) c.metres = fabsf(c.metres);
       pending_ = c;
       pendingAt_ = now;
       sequence_++;
       sendCommand(now);
     }
   }
-  void serializeStatus(JsonObject obj, const Status &s, bool online, int8_t rssi) {
+  void serializeStatus(JsonObject obj, const Status &s, bool online, int8_t rssi, bool carriage2 = false) {
     obj["online"] = online;
     obj["rssi"] = rssi;
     obj["position"] = s.position;
     obj["target"] = s.target;
+    if (online && s.centered && s.calibrated) {
+      obj["fromReference"] = s.fromReference;
+      obj["leftWheelM"] = s.wheelPosition[0];
+      obj["rightWheelM"] = s.wheelPosition[1];
+    }
     obj["outputPwm"] = s.pwm[0] ? s.pwm[0] : s.pwm[1];
     obj["speed"] = s.speed;
     obj["program"] = s.program;
@@ -320,13 +475,20 @@ class Firmware {
     obj["lightTest"] = uint8_t(s.lightTest);
     obj["mode"] = s.mode == Mode::Idle ? "СЃС‚РѕРї" : s.mode == Mode::Timed ? "С‚РµСЃС‚ С‡Р°СЃСѓ" : "СЂСѓС…";
     obj["testRemainingMs"] = s.remainingMs;
+    obj["surveyed"] = s.surveyed;
+    obj["atOuterMark"] = s.atOuterMark;
+    obj["parked"] = s.parked;
+    obj["moving"] = s.mode != Mode::Idle;
     obj["centered"] = s.centered;
     obj["calibrated"] = s.calibrated;
     obj["ready"] = s.ready;
     obj["powered"] = s.powered;
     obj["hasIna226"] = s.hasIna226;
     obj["locked"] = s.locked;
-    obj["fault"] = s.fault;
+    if (s.fault != MotorFault::None) {
+      obj["fault"] = motorFaultMessage(s.fault);
+      obj["faultMotor"] = s.faultMotor;
+    }
     if (!online) return;
     obj["enc1"] = s.count[0];
     obj["enc2"] = s.count[1];
@@ -335,6 +497,9 @@ class Firmware {
     if (s.calibrated) {
       obj["wheelSpeed1"] = s.wheelMps[0];
       obj["wheelSpeed2"] = s.wheelMps[1];
+      const auto &motors = motorSettingsFor(carriage2);
+      if (motors[0].wheelCircumferenceMm > 0) obj["wheelRpm1"] = s.wheelMps[0] * 60000.0f / motors[0].wheelCircumferenceMm;
+      if (motors[1].wheelCircumferenceMm > 0) obj["wheelRpm2"] = s.wheelMps[1] * 60000.0f / motors[1].wheelCircumferenceMm;
     }
     if (s.maxMps > 0) obj["maxSpeed"] = s.maxMps;
     if (s.currentValid) obj["amps"] = s.amps;
@@ -349,11 +514,23 @@ class Firmware {
     JsonDocument d;
     d["type"] = "state";
     d["linked"] = linked_;
-    const bool online = remoteBoot_ && now - radioAt_ < LinkTimeout;
+    d["surveying"] = surveying_;
+    d["parking"] = parking_;
+    if (parkCounting_) {
+      const uint32_t elapsed = now - parkIdleAt_;
+      if (elapsed < ParkIdleDelayMs) d["parkWaitMs"] = ParkIdleDelayMs - elapsed;
+    }
+    if (SharedCable) {
+      d["outerM"] = SharedOuterM;
+      d["innerM"] = SharedInnerM;
+      d["railM"] = SharedCableM / 2;
+      d["wheelbaseM"] = 2 * HalfWheelbaseM;
+    }
+    const bool online = networkReady() && remoteBoot_ && now - radioAt_ < LinkTimeout;
     d["nodeOnline"] = online && remoteHandshake_;
     auto a = d["carriages"].to<JsonArray>();
     serializeStatus(a.add<JsonObject>(), local_.status(now), true, -55);
-    if constexpr (Role == 1) serializeStatus(a.add<JsonObject>(), remoteState_, online && remoteHandshake_, remoteRssi_);
+    if constexpr (Role == 1) serializeStatus(a.add<JsonObject>(), remoteState_, online && remoteHandshake_, remoteRssi_, true);
     String msg;
     serializeJson(d, msg);
     socket_.broadcastTXT(msg);
@@ -367,6 +544,10 @@ class Firmware {
   uint32_t pendingAt_ = 0, sentAt_ = 0, broadcastAt_ = 0, ownerAt_ = 0;
   uint8_t owner_ = NoOwner;
   int8_t remoteRssi_ = -127;
+  IPAddress homeIp_;
+  bool surveying_ = false, pairPermit_ = false, parking_ = false, parkCounting_ = false;
+  bool parkArmed_ = false;
+  uint32_t parkIdleAt_ = 0;
   bool remoteHandshake_ = false;
   bool linked_ = false, wasOnline_ = false, radioReady_ = false, remoteArmed_ = false, commandAccepted_ = false;
 };

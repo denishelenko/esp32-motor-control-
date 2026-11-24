@@ -34,18 +34,36 @@ inline const char WEB_HTML[] PROGMEM = R"HTML(
 .preciseTarget label{display:grid;gap:4px;color:var(--muted);font-size:.8rem}
 .preciseTarget input{width:8rem;box-sizing:border-box;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--ink);color:var(--paper);font:inherit;font-size:1rem}
 .preciseTarget button{min-height:40px;padding:6px 12px;border:1px solid var(--line);border-radius:9px;background:var(--ink);color:var(--paper);font:inherit}
+
+[hidden]{display:none!important}
+.speed{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.speed button,#survey,#clearReference{border:1px solid var(--mid);border-radius:10px;background:var(--ink);color:var(--paper);min-height:40px;padding:0 12px}
+.speed button[aria-pressed="true"]{background:var(--mid);border-color:var(--paper)}
+.rail.shared{position:relative}
+.rail.shared>span{position:absolute;inset-block:0;background:var(--accent);border-radius:4px}
+.nodeMarker{position:absolute;top:35px;z-index:2;transform:translateX(-50%);border-radius:6px;border:1px solid #151c19;background:#ff934f;color:#161a17;font-weight:800;padding:2px 6px;pointer-events:none}
+.nodeMarker.selected{outline:2px solid var(--paper)}
+#sharedSetup p{color:var(--muted);font-size:.82rem;line-height:1.5}
+
+#noConnection[hidden],.driveFault[hidden]{display:none!important}
+#noConnection{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:#3d4240a9;backdrop-filter:blur(5px) grayscale(.8);color:#fff;text-align:center}
+#noConnection strong{font-size:clamp(1.35rem,5vw,2rem);text-shadow:0 1px 7px #0008}
+.connectionPulse{position:absolute;top:22px;right:22px;width:13px;height:13px;border-radius:50%;background:#ff8989;animation:offlinePulse 1.8s ease-in-out infinite}
+@keyframes offlinePulse{50%{opacity:.3;box-shadow:0 0 13px 4px #ff898977}}
+@media(prefers-reduced-motion:reduce){.connectionPulse{animation:none}}
+.driveFault{padding:9px 11px;margin-top:6px;border:1px solid #ce6860;border-radius:9px;color:#ffaaaa;background:#4c2826;font-weight:700;white-space:pre-line}
 </style></head><body><main>
 <header><h1>Дві каретки</h1><button id="link" class="chain" aria-pressed="false" title="Окремі команди для кожної каретки"><svg viewBox="0 0 100 34" aria-hidden="true"><g class="linkedIcon" fill="none" stroke="currentColor" stroke-width="6"><path d="M16 4H28a13 13 0 0 1 0 26H16a13 13 0 0 1 0-26Z"/><path d="M44 4H56a13 13 0 0 1 0 26H44a13 13 0 0 1 0-26Z"/><path d="M72 4H84a13 13 0 0 1 0 26H72a13 13 0 0 1 0-26Z"/></g><path class="brokenIcon" d="M44.0,10.7L44.0,16.7L55.8,16.7L55.6,10.4ZM58.1,9.8L58.1,17.6L59.8,21.2L62.8,24.5L66.2,26.4L82.4,31.8L86.8,32.1L91.8,30.9L94.5,29.2L96.6,27.0L99.0,22.5L99.0,14.5L97.3,10.9L94.3,7.6L91.3,5.9L75.3,0.6L68.7,0.2L65.3,1.3L70.2,3.0L73.7,6.5L88.5,11.2L91.6,13.2L93.3,16.2L93.6,20.0L91.9,23.4L89.0,25.7L84.1,26.1L67.9,20.7L65.7,19.2L63.9,16.6L63.8,11.5ZM54.9,0.2L53.0,5.8L66.5,10.3L67.0,12.2L65.6,13.7L65.9,15.6L67.9,18.3L69.1,18.4L70.2,17.8L71.9,15.9L73.0,13.3L73.0,10.3L71.0,6.4L67.5,4.2ZM45.0,0.2L32.2,4.2L29.0,6.2L27.0,9.5L26.9,13.3L29.2,17.5L31.4,18.4L33.2,17.0L34.2,13.8L32.7,12.2L33.5,10.2L46.8,5.8ZM41.7,9.8L36.1,11.5L35.9,16.6L34.2,19.2L31.9,20.7L15.6,26.1L10.8,25.7L7.5,22.9L6.2,20.0L6.2,17.1L8.1,13.2L11.3,11.2L26.1,6.5L29.2,3.3L34.4,1.3L31.0,0.2L24.5,0.6L8.5,5.9L5.5,7.6L2.7,10.7L1.0,13.9L0.4,16.5L0.4,20.6L1.0,23.2L2.7,26.4L5.3,29.2L10.4,31.8L17.3,31.8L35.8,25.3L39.4,22.1L41.3,18.7L42.2,15.6Z"/></svg></button><div class="status"><i id="dot" class="dot"></i><span id="status">підключення…</span></div></header>
 <section class="carriages"><button class="carriage active" data-carriage="1"><span id="state1" class="state online level-4"><i class="signal"><b></b><b></b><b></b><b></b></i><span class="stateLabel">онлайн</span></span><svg class="cart" viewBox="0 0 210 100" aria-label="каретка з тросом знизу"><path class="cable" d="M4 78H206"/><path class="carriage-stem" d="M79 46H131L124 77Q123 86 113 86H97Q87 86 86 77Z"/><path class="carriage-bar" d="M30 23H180Q190 23 190 33V47Q190 55 180 55H30Q20 55 20 47V33Q20 23 30 23Z"/><path class="carriage-panel" d="M54 31H156L151 47H59Z"/><circle class="wheel-shell" cx="30" cy="39" r="14"/><circle class="wheel-face" cx="30" cy="39" r="7"/><circle class="wheel-hub" cx="30" cy="39" r="2"/><circle class="wheel-shell" cx="180" cy="39" r="14"/><circle class="wheel-face" cx="180" cy="39" r="7"/><circle class="wheel-hub" cx="180" cy="39" r="2"/><circle class="led-halo" cx="105" cy="39" r="12"/><circle class="led-core" cx="105" cy="39" r="5"/></svg></button><button class="carriage" data-carriage="2"><span id="state2" class="state off level-0"><i class="signal"><b></b><b></b><b></b><b></b></i><span class="stateLabel">офлайн</span></span><svg class="cart" viewBox="0 0 210 100" aria-label="каретка з тросом знизу"><path class="cable" d="M4 78H206"/><path class="carriage-stem" d="M79 46H131L124 77Q123 86 113 86H97Q87 86 86 77Z"/><path class="carriage-bar" d="M30 23H180Q190 23 190 33V47Q190 55 180 55H30Q20 55 20 47V33Q20 23 30 23Z"/><path class="carriage-panel" d="M54 31H156L151 47H59Z"/><circle class="wheel-shell" cx="30" cy="39" r="14"/><circle class="wheel-face" cx="30" cy="39" r="7"/><circle class="wheel-hub" cx="30" cy="39" r="2"/><circle class="wheel-shell" cx="180" cy="39" r="14"/><circle class="wheel-face" cx="180" cy="39" r="7"/><circle class="wheel-hub" cx="180" cy="39" r="2"/><circle class="led-halo" cx="105" cy="39" r="12"/><circle class="led-core" cx="105" cy="39" r="5"/></svg></button></section>
-<section class="telemetry" aria-label="Батарея й енкодери"><div id="battery">Батарея —</div><div id="encoder">Енкодери —</div><div id="measuredSpeed">Швидкість коліс —</div><div id="interlock" role="status"></div><div id="notice" role="status"></div><button type="button" id="batteryReset" hidden>Скинути блокування після заряджання</button></section><div class="readout"><strong id="pos">0.00</strong><strong> м</strong> <span>від центру · <b id="which">каретка 1</b></span></div>
-<div class="railWrap"><div class="rail"></div><div class="centre"></div><svg id="targetIcon" class="ipsc" viewBox="0 0 400 520" style="left:50%" aria-label="IPSC мішень"><path class="target-outline" d="M154 90H246L335 204V292L246 430H154L65 292V204Z"/><path class="target-rim" d="M156 94H244L331 206V290L244 426H156L69 290V206Z"/><path class="target-zone" d="M154 94H246L292 204V289L226 361H174L108 289V204Z"/><path class="target-zone" d="M186 106H214L244 204V257L214 304H186L156 257V204Z"/><text x="200" y="218">A</text><text x="138" y="218">C</text><text x="262" y="218">C</text><text x="92" y="218">D</text><text x="308" y="218">D</text></svg><i id="targetDot" class="targetDot" style="left:50%" aria-label="вибрана точка"></i><input id="target" class="target" type="range" min="-8" max="8" step="0.05" value="0"><div class="ticks"><i class="tick major" style="left:0%"><span>−8 м</span></i><i class="tick" style="left:6.25%"></i><i class="tick major" style="left:12.5%"><span>−6</span></i><i class="tick" style="left:18.75%"></i><i class="tick major" style="left:25%"><span>−4</span></i><i class="tick" style="left:31.25%"></i><i class="tick major" style="left:37.5%"><span>−2</span></i><i class="tick" style="left:43.75%"></i><i class="tick major" style="left:50%"><span>центр</span></i><i class="tick" style="left:56.25%"></i><i class="tick major" style="left:62.5%"><span>+2</span></i><i class="tick" style="left:68.75%"></i><i class="tick major" style="left:75%"><span>+4</span></i><i class="tick" style="left:81.25%"></i><i class="tick major" style="left:87.5%"><span>+6</span></i><i class="tick" style="left:93.75%"></i><i class="tick major" style="left:100%"><span>+8 м</span></i></div></div>
+<section class="telemetry" aria-label="Батарея й енкодери"><div id="battery">Батарея —</div><div id="encoder">Енкодери —</div><div id="measuredSpeed">Швидкість коліс —</div><div id="odometry" hidden></div><div id="parkingStatus" role="status" hidden></div><div id="interlock" role="status"></div><div id="notice" role="status"></div><div id="driveFault" class="driveFault" role="alert" hidden></div><button type="button" id="batteryReset" hidden>Скинути блокування після заряджання</button></section><div class="readout"><strong id="pos">0.00</strong><strong> м</strong> <span>від центру · <b id="which">каретка 1</b></span></div>
+<div class="railWrap"><div id="rail" class="rail"></div><span id="node1" class="nodeMarker" hidden>1</span><span id="node2" class="nodeMarker" hidden>2</span><div class="centre"></div><svg id="targetIcon" class="ipsc" viewBox="0 0 400 520" style="left:50%" aria-label="IPSC мішень"><path class="target-outline" d="M154 90H246L335 204V292L246 430H154L65 292V204Z"/><path class="target-rim" d="M156 94H244L331 206V290L244 426H156L69 290V206Z"/><path class="target-zone" d="M154 94H246L292 204V289L226 361H174L108 289V204Z"/><path class="target-zone" d="M186 106H214L244 204V257L214 304H186L156 257V204Z"/><text x="200" y="218">A</text><text x="138" y="218">C</text><text x="262" y="218">C</text><text x="92" y="218">D</text><text x="308" y="218">D</text></svg><i id="targetDot" class="targetDot" style="left:50%" aria-label="вибрана точка"></i><input id="target" class="target" type="range" min="-8" max="8" step="0.05" value="0"><div class="ticks"><i class="tick major" style="left:0%"><span>−8 м</span></i><i class="tick" style="left:6.25%"></i><i class="tick major" style="left:12.5%"><span>−6</span></i><i class="tick" style="left:18.75%"></i><i class="tick major" style="left:25%"><span>−4</span></i><i class="tick" style="left:31.25%"></i><i class="tick major" style="left:37.5%"><span>−2</span></i><i class="tick" style="left:43.75%"></i><i class="tick major" style="left:50%"><span>центр</span></i><i class="tick" style="left:56.25%"></i><i class="tick major" style="left:62.5%"><span>+2</span></i><i class="tick" style="left:68.75%"></i><i class="tick major" style="left:75%"><span>+4</span></i><i class="tick" style="left:81.25%"></i><i class="tick major" style="left:87.5%"><span>+6</span></i><i class="tick" style="left:93.75%"></i><i class="tick major" style="left:100%"><span>+8 м</span></i></div></div>
 <form id="preciseTarget" class="preciseTarget"><label>Ціль, м<input id="targetMetres" type="number" min="-8" max="8" step="0.001" inputmode="decimal" placeholder="2.375" required disabled></label><button id="sendTarget" type="submit" disabled>Їхати до точки</button></form>
-<div class="speed"><label for="speed">Швидкість</label><input id="speed" type="range" min="0" max="100" value="50"><output id="speedOut">50%</output></div><button id="stop" class="stop">СТАРТ</button><p class="sectionTitle">Режими роботи</p>
-<div class="automation"><div class="programs"><button data-program="1" class="active">Маятник<small>від краю до краю</small></button><button data-program="2">Драбинка<small>зупинка кожні 2 м</small></button><button data-program="3">Ривки<small>швидкі 1–3 м на 100%</small></button><button data-program="4">Рандом<small>довгі переходи від 4 м</small></button></div><section class="servoPanel"><div class="servoTitle">Керування сервоприводом</div><div class="servoButtons"><button data-servo="45" class="selected">45°</button><button data-servo="90">90°</button><button id="servoOff" class="servoOff active">Вимк.</button></div><div class="servoVisual" aria-hidden="true"><div class="servoDial"><i id="servoArm" class="servoArm"></i></div></div><div id="servoState" class="servoState">вимкнено · 0°</div></section></div>
-<details><summary>Ручне калібрування</summary><div class="manual"><button id="left">Вліво</button><button id="zero" class="zero">Позначити поточне місце як центр</button><button id="right">Вправо</button></div><section class="timedTest"><p>Тест однієї вибраної каретки. Поставте її так, щоб вистачило місця для руху. Для калібрування запишіть різницю показників енкодерів і відстань, виміряну рулеткою.</p><div class="testRow"><button data-test-direction="left" class="chosen">← Вліво</button><button data-test-direction="right">Вправо →</button></div><div class="testRow"><button data-test-ms="1000">1 с</button><button data-test-ms="2000">2 с</button><button data-test-ms="5000">5 с</button><button data-test-ms="10000">10 с</button></div><p id="testStatus" role="status">Оберіть напрямок і тривалість. Швидкість — повзунком вище. СТОП перериває тест.</p><button type="button" id="brake">Гальмо · LOW/LOW</button></section><section class="timedTest"><p>Перевірка підсвітки</p><div class="testRow"><button data-light="red">Червоний</button><button data-light="green">Зелений</button><button data-light="mosfet">Строб 12 В</button></div><p id="lightStatus" role="status">Кожен тест блимає 3 секунди.</p></section></details>
-</main><script>
+<div class="speed" aria-label="Максимальна швидкість у кілометрах за годину"><span>Макс. швидкість, км/год</span><button type="button" data-speed="5">5</button><button type="button" data-speed="10">10</button><button type="button" data-speed="15">15</button></div><button id="stop" class="stop">СТАРТ</button><p class="sectionTitle">Режими роботи</p>
+<div class="automation"><div class="programs"><button data-program="1" class="active">Маятник<small>від краю до краю</small></button><button data-program="2">Драбинка<small>зупинка кожні 2 м</small></button><button data-program="3">Ривки<small>переходи 1–3 м</small></button><button data-program="4">Рандом<small>довгі переходи від 4 м</small></button></div><section class="servoPanel"><div class="servoTitle">Керування сервоприводом</div><div class="servoButtons"><button data-servo="45" class="selected">45°</button><button data-servo="90">90°</button><button id="servoOff" class="servoOff active">Вимк.</button></div><div class="servoVisual" aria-hidden="true"><div class="servoDial"><i id="servoArm" class="servoArm"></i></div></div><div id="servoState" class="servoState">вимкнено · 0°</div></section></div>
+<details id="calibration"><summary>Ручне калібрування</summary><section id="sharedSetup" hidden><p id="sharedInstructions"></p><button type="button" id="survey">Відкалібрувати обидві до центра</button> <button type="button" id="clearReference">Скинути мітку вибраної</button><p id="surveyState" role="status"></p></section><div class="manual"><button id="left">Вліво</button><button id="zero" class="zero">Позначити поточне місце як центр</button><button id="right">Вправо</button></div><section id="timedTest" class="timedTest"><p>Тест однієї вибраної каретки. Поставте її так, щоб вистачило місця для руху. Для калібрування запишіть різницю показників енкодерів і відстань, виміряну рулеткою.</p><div class="testRow"><button data-test-direction="left" class="chosen">← Вліво</button><button data-test-direction="right">Вправо →</button></div><div class="testRow"><button data-test-ms="1000">1 с</button><button data-test-ms="2000">2 с</button><button data-test-ms="5000">5 с</button><button data-test-ms="10000">10 с</button></div><p id="testStatus" role="status">Оберіть напрямок і тривалість. Ліміт швидкості задають кнопки вище. СТОП перериває тест.</p><button type="button" id="brake">Гальмо · LOW/LOW</button></section><section class="timedTest"><p>Перевірка підсвітки</p><div class="testRow"><button data-light="red">Червоний</button><button data-light="green">Зелений</button><button data-light="mosfet">Строб 12 В</button></div><p id="lightStatus" role="status">Кожен тест блимає 3 секунди.</p></section></details>
+</main><div id="noConnection" role="status"><i class="connectionPulse" aria-hidden="true"></i><strong>Немає зв’язку</strong></div><script>
 (()=>{
-const single=__SINGLE__;
+const single=__SINGLE__,shared=__SHARED__;
 document.title="Керування каретками";
 document.querySelector("h1").textContent=single?"Каретка":"Каретки";
 if(single){document.getElementById("link").hidden=true;document.querySelector('[data-carriage="2"]').hidden=true;}
@@ -53,12 +71,43 @@ const $=id=>document.getElementById(id),all=q=>[...document.querySelectorAll(q)]
 const carriageScroller=document.querySelector(".carriages");
 carriageScroller.tabIndex=0;carriageScroller.setAttribute("aria-label","Каретки. Прокручуйте горизонтально");
 carriageScroller.addEventListener("wheel",e=>{if(carriageScroller.scrollWidth<=carriageScroller.clientWidth)return;const delta=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY;carriageScroller.scrollLeft+=delta;e.preventDefault()},{passive:false});
-let ws,selected=1,linked=false,drag=false,jogTimer,lastSent=0,jogPointer=null,state=[],testDirection="left";
+let lastStateAt=0,connected=false;
+let ws,selected=1,linked=false,drag=false,jogTimer,jogPointer=null,state=[],testDirection="left";
+let outer=9.5,inner=0.5,rail=10,wheelbase=0,surveying=false,parking=false,parkWaitMs=0,geometry="";
+$("sharedSetup").hidden=!shared;$("timedTest").hidden=shared;
+if(shared)$("calibration").open=true;
 const servoVisual=[{angle:0,last:performance.now()},{angle:0,last:performance.now()}];
-const send=x=>{if(ws&&ws.readyState===1)ws.send(JSON.stringify({...x,carriage:selected}))};
-const active=()=>state[selected-1]||{position:0,target:0,speed:50,program:1,mode:"стоп",servoAngle:45,servoPosition:0,servoEnabled:false,servoTravel90Ms:350};
+const send=x=>{if(connected&&ws&&ws.readyState===1)ws.send(JSON.stringify({...x,carriage:selected}))};
+const active=()=>state[selected-1]||{position:0,target:0,speed:5,program:1,mode:"стоп",servoAngle:45,servoPosition:0,servoEnabled:false,servoTravel90Ms:350};
 const lightNames=["","Червоний LED","Зелений LED","Строб 12 В"];
-const pct=v=>Math.max(0,Math.min(100,(v+8)/16*100))+"%";
+const pct=v=>Math.max(0,Math.min(100,(v+(shared?rail:8))/(2*(shared?rail:8))*100))+"%";
+function drawSharedRail(){
+ const key=[outer,inner,rail,wheelbase].join("/");
+ if(key===geometry)return;
+ geometry=key;
+ $("rail").classList.add("shared");
+ $("rail").replaceChildren();
+ for(const [lo,hi] of [[-outer,-inner],[inner,outer]]){
+  const zone=document.createElement("span");
+  zone.style.left=pct(lo);zone.style.right=pct(-hi);
+  $("rail").append(zone);
+ }
+ const ticks=document.querySelector(".ticks");
+ ticks.replaceChildren();
+ for(const [v,label] of [[-rail,"−"+rail+" м"],[0,"центр"],[rail,"+"+rail+" м"]]){
+  const i=document.createElement("i"),span=document.createElement("span");
+  i.className="tick major";i.style.left=pct(v);span.textContent=label;i.append(span);ticks.append(i);
+ }
+ $("sharedInstructions").textContent="Поставте каретку 1 ліворуч, каретку 2 праворуч. Відміряйте від кожного краю "+(rail-outer-wheelbase/2).toFixed(3)+" м до центра зовнішнього колеса. Утримуйте кнопку в напрямку свого краю, відпустіть на мітці, виберіть «Позначити край». Коли обидва краї позначено, запустіть калібрування.";
+}
+function setConnected(value){
+ connected=value;
+ $("noConnection").hidden=value;
+ document.querySelector("main").inert=!value;
+ $("dot").classList.toggle("ok",value);
+ $("status").textContent=value?"Сайт онлайн":"Немає зв’язку із сайтом";
+ if(!value)stopJog();
+}
 function redraw(){
  const c=active(),p=Number(c.position)||0,t=Number(c.target)||0;
  const visual=servoVisual[selected-1],now=performance.now(),targetAngle=Number(c.servoPosition)||0;
@@ -66,25 +115,70 @@ function redraw(){
  const delta=targetAngle-visual.angle;
  visual.angle+=Math.sign(delta)*Math.min(Math.abs(delta),maxStep);visual.last=now;
  const positionKnown=c.online&&c.centered&&c.calibrated;
+ $("odometry").hidden=!positionKnown||!Number.isFinite(c.fromReference);
+ if(!$("odometry").hidden){
+  const reference=shared?"Від зовнішньої мітки":"Від точки відліку";
+  const edge=selected===1?c.leftWheelM+rail:rail-c.rightWheelM;
+  $("odometry").textContent=reference+" "+c.fromReference.toFixed(3)+" м · ліве колесо "+c.leftWheelM.toFixed(3)+" м · праве "+c.rightWheelM.toFixed(3)+" м"+
+    (shared?" · від краю до зовнішнього колеса "+edge.toFixed(3)+" м":"");
+ }
+ const parkSeconds=Math.ceil(parkWaitMs/1000);
+ const parkTime=Math.floor(parkSeconds/60)+":"+String(parkSeconds%60).padStart(2,"0");
+ const parkingText=parking?"Повернення кареток до зовнішніх міток":parkWaitMs?
+   "Повернення до міток через "+parkTime:"";
+ $("parkingStatus").hidden=!parkingText;
+ if($("parkingStatus").textContent!==parkingText)$("parkingStatus").textContent=parkingText;
+ const bothReady=state.length===2&&state.every(x=>x.online&&x.ready);
+ const sharedReady=bothReady&&state.every(x=>x.surveyed);
+ if(shared){
+  drawSharedRail();
+  state.forEach((x,i)=>{
+   const marker=$("node"+(i+1));
+   marker.hidden=!x.online||!x.centered;marker.style.left=pct(x.position);
+   marker.classList.toggle("selected",i===selected-1);
+  });
+  for(let i=state.length;i<2;i++)$("node"+(i+1)).hidden=true;
+  const [lo,hi]=selected===1?[-outer,-inner]:[inner,outer];
+  $("target").min=$("targetMetres").min=lo;
+  $("target").max=$("targetMetres").max=hi;
+  const left=pct(lo),right=pct(hi);
+  $("target").style.left=left;$("target").style.width="calc("+right+" - "+left+")";
+  $("zero").textContent="Позначити край";
+  $("zero").disabled=!bothReady||c.moving||c.centered||surveying;
+  $("left").disabled=!bothReady||surveying||(!sharedReady&&(selected!==1||c.centered));
+  $("right").disabled=!bothReady||surveying||(!sharedReady&&(selected!==2||c.centered));
+  $("clearReference").disabled=!bothReady||surveying||!c.centered||state.some(x=>x.moving);
+  $("survey").disabled=!bothReady||surveying||!state.every(x=>x.atOuterMark);
+  $("surveyState").textContent=surveying?"Каретки їдуть до меж своїх зон…":sharedReady?"Трос відкалібровано":state.map((x,i)=>"Каретка "+(i+1)+(x.centered?" · край позначено":" · позначте край")).join(" | ");
+ }
  $("battery").hidden=c.hasIna226===false;
  $("battery").textContent=c.online&&Number.isFinite(c.volts)?"Батарея ≈ "+c.charge.toFixed(0)+"% · "+c.volts.toFixed(2)+" В"+(Number.isFinite(c.amps)?" · "+c.amps.toFixed(2)+" А":""):"Батарея —";
  $("encoder").textContent=c.online&&Number.isFinite(c.enc1)?"Імпульси A/B · M1 "+c.enc1+" · M2 "+c.enc2:"Енкодери —";
  const measured=Number.isFinite(c.wheelSpeed1)&&Number.isFinite(c.wheelSpeed2);
  $("measuredSpeed").textContent=!c.online||!Number.isFinite(c.countsPerSec1)?"Швидкість коліс —":
-   measured?"Швидкість коліс · M1 "+c.wheelSpeed1.toFixed(2)+" · M2 "+c.wheelSpeed2.toFixed(2)+" м/с":
+   measured?"Швидкість коліс · M1 "+(c.wheelSpeed1*3.6).toFixed(2)+" км/год ("+c.wheelRpm1.toFixed(0)+" об/хв) · M2 "+(c.wheelSpeed2*3.6).toFixed(2)+" км/год ("+c.wheelRpm2.toFixed(0)+" об/хв)":
    "Частота енкодерів · M1 "+Math.round(c.countsPerSec1)+" · M2 "+Math.round(c.countsPerSec2)+" відл./с";
  $("lightStatus").textContent=lightNames[c.lightTest]?lightNames[c.lightTest]+" блимає…":"Кожен тест блимає 3 секунди.";
  all("[data-light]").forEach(button=>button.disabled=!c.online||!c.powered||c.servoEnabled||c.mode!=="стоп");
- $("interlock").textContent=!c.online?"Офлайн":c.locked?"Зупинка · низька напруга":c.fault?"Помилка енкодера":!c.ready?"Приводи заблоковані":!Number.isFinite(c.maxSpeed)?"Швидкість ще не відкалібрована · доступний тест за часом":!positionKnown?"Для руху в метрах потрібні калібрування та центр":"";
+ const faults=state.flatMap((item,i)=>item.online&&item.fault?
+   [(single?"":"Каретка "+(i+1)+" · ")+(item.faultMotor?"M"+item.faultMotor+" · ":"")+item.fault]:[]);
+ const message=faults.join("\n");
+ if($("driveFault").textContent!==message)$("driveFault").textContent=message;
+ $("driveFault").hidden=!faults.length;
+ $("interlock").textContent=!c.online?"Офлайн":c.locked?"Зупинка · низька напруга":c.fault?"":!c.ready?"Приводи заблоковані":!Number.isFinite(c.maxSpeed)?"Швидкість ще не відкалібрована · доступний тест за часом":!positionKnown?"Для руху в метрах позначте точку відліку":shared&&!sharedReady?"Для руху в метрах відкалібруйте обидві каретки":"";
  $("batteryReset").hidden=c.hasIna226===false||!c.locked;
- $("target").disabled=!c.ready||!positionKnown||!Number.isFinite(c.maxSpeed);
+ $("target").disabled=!c.ready||!positionKnown||!Number.isFinite(c.maxSpeed)||(shared&&!sharedReady);
  $("targetMetres").disabled=$("sendTarget").disabled=$("target").disabled;
- $("targetIcon").hidden=!positionKnown;
+ $("targetIcon").hidden=shared||!positionKnown;
+ $("targetDot").hidden=!positionKnown;
  $("pos").textContent=positionKnown?p.toFixed(3):"—";$("which").textContent="каретка "+selected;
  $("targetIcon").style.left=pct(p);$("targetDot").style.left=pct(t);
  if(!drag)$("target").value=t;
- $("speed").value=c.speed??50;$("speedOut").textContent=$("speed").value+"%";
- $("stop").textContent=c.mode==="стоп"&&!c.servoEnabled&&!c.lightTest?"СТАРТ":"СТОП";
+ all("[data-speed]").forEach(b=>b.setAttribute("aria-pressed",Number(b.dataset.speed)===Number(c.speed||5)));
+ const operating=(shared||linked?state:[c]).some(x=>x.moving||x.servoEnabled||x.lightTest)||surveying||parking||parkWaitMs>0;
+ $("stop").textContent=operating?"СТОП":"СТАРТ";
+ $("stop").disabled=!operating&&!(c.ready&&positionKnown&&(!shared||sharedReady));
+ all("[data-program]").forEach(b=>b.disabled=$("stop").disabled);
  if(c.mode==="тест часу")$("testStatus").textContent="Тест триває: "+(Math.max(0,Number(c.testRemainingMs)||0)/1000).toFixed(1)+" с. СТОП перериває рух.";
  const phase=visual.angle<targetAngle-1?"відкривається":visual.angle>targetAngle+1?"закривається":targetAngle?"відкрито":"закрито";
  $("servoState").textContent=c.servoEnabled?phase+" · "+Math.round(visual.angle)+"°":"вимкнено · 0°";
@@ -95,33 +189,49 @@ function redraw(){
  $("servoOff").classList.toggle("active",!c.servoEnabled)
 }
 function setState(s){
- state=s.carriages||state;linked=!!s.linked;
+ state=s.carriages||state;linked=!!s.linked;surveying=!!s.surveying;parking=!!s.parking;parkWaitMs=Number(s.parkWaitMs)||0;
+ if(shared){outer=Number(s.outerM)||9.5;inner=Number(s.innerM)||0.5;rail=Number(s.railM)||10;wheelbase=Number(s.wheelbaseM)||0}
  const nodeConnected=!!s.nodeOnline;
  $("link").classList.toggle("active",linked);$("link").setAttribute("aria-pressed",linked);
  $("link").classList.toggle("offline",!nodeConnected);
  $("link").title=!nodeConnected?"Немає сигналу другої каретки":linked?"Синхронні команди для обох кареток":"Окремі команди для кожної каретки";
  $("link").setAttribute("aria-label",$("link").title);
- $("dot").classList.add("ok");$("status").textContent="Сайт онлайн";
+ lastStateAt=performance.now();if(!connected)setConnected(true);
  state.forEach((c,i)=>{const e=$("state"+(i+1)),r=Number(c.rssi||-127),level=!c.online?0:r>=-55?4:r>=-67?3:r>=-75?2:1;e.className="state "+(c.online?"online":"off")+" level-"+level;e.querySelector(".stateLabel").textContent=c.online?"онлайн":"офлайн"});
  redraw()
 }
+function disconnect(socket){
+ if(ws!==socket)return;
+ ws=null;
+ setConnected(false);
+ socket.close();
+ setTimeout(connect,250);
+}
 function connect(){
- ws=new WebSocket("ws://"+location.hostname+":81/");
- ws.onopen=()=>{$("dot").classList.add("ok");$("status").textContent="Сайт онлайн"};
- ws.onmessage=e=>{try{const s=JSON.parse(e.data);if(s.type==="state")setState(s);if(s.type==="notice")$("notice").textContent=s.message}catch(_){}};
- ws.onclose=()=>{stopJog();state=[];redraw();$("dot").classList.remove("ok");$("status").textContent="Немає зв’язку із сайтом";setTimeout(connect,1000)}
+ const socket=new WebSocket("ws://"+location.hostname+":81/");
+ ws=socket;
+ let receivedState=false;
+ socket.onmessage=e=>{
+  if(socket!==ws)return;
+  try{const s=JSON.parse(e.data);if(s.type==="state"){receivedState=true;setState(s)}if(s.type==="notice")$("notice").textContent=s.message}catch(_){}
+ };
+ socket.onclose=()=>disconnect(socket);
+ setTimeout(()=>{if(ws===socket&&!receivedState)disconnect(socket)},2000);
 }
 all(".carriage").forEach(b=>b.onclick=()=>{stopJog();selected=Number(b.dataset.carriage);redraw()});
 $("link").onclick=()=>send({type:"link",enabled:!linked});
-$("speed").oninput=()=>{$("speedOut").textContent=$("speed").value+"%";send({type:"speed",speed:+$("speed").value})};
+all("[data-speed]").forEach(b=>b.onclick=()=>send({type:"speed",speed:Number(b.dataset.speed)}));
 $("target").onpointerdown=()=>drag=true;
-$("target").oninput=()=>{const now=Date.now();$("targetDot").style.left=pct(+$("target").value);if(now-lastSent>40){lastSent=now;send({type:"target",position:+$("target").value,speed:+$("speed").value})}};
-$("target").onchange=()=>{drag=false;send({type:"target",position:+$("target").value,speed:+$("speed").value})};
+$("target").onpointercancel=()=>{drag=false;redraw()};
+$("target").oninput=()=>$("targetDot").style.left=pct(+$("target").value);
+$("target").onchange=()=>{drag=false;send({type:"target",position:+$("target").value})};
+$("survey").onclick=()=>send({type:"survey"});
+$("clearReference").onclick=()=>send({type:"clear_reference"});
 $("preciseTarget").onsubmit=event=>{
  event.preventDefault();
  const input=$("targetMetres");
  if(input.disabled||!input.reportValidity())return;
- send({type:"target",position:input.valueAsNumber,speed:+$("speed").value});
+ send({type:"target",position:input.valueAsNumber});
 };
 $("stop").onclick=()=>send({type:$("stop").textContent==="СТАРТ"?"start":"stop"});
 $("brake").onclick=()=>send({type:"brake"});
@@ -129,8 +239,8 @@ all("[data-light]").forEach(b=>b.onclick=()=>send({type:"light_test",output:b.da
 $("batteryReset").onclick=()=>send({type:"battery_reset"});
 $("zero").onclick=()=>send({type:"zero"});
 all("[data-test-direction]").forEach(b=>b.onclick=()=>{testDirection=b.dataset.testDirection;all("[data-test-direction]").forEach(x=>x.classList.toggle("chosen",x===b))});
-all("[data-test-ms]").forEach(b=>b.onclick=()=>{if(selected===2&&!active().online){$("testStatus").textContent="Друга каретка офлайн. Спочатку відновіть зв’язок.";return}if(!ws||ws.readyState!==1){$("testStatus").textContent="Немає зв’язку із сайтом.";return}const ms=+b.dataset.testMs;if(+$("speed").value===0){$("testStatus").textContent="Для тесту оберіть швидкість вище 0%.";return}send({type:"timed_test",direction:testDirection,durationMs:ms,speed:+$("speed").value});$("testStatus").textContent="Запущено на "+(ms/1000)+" с. Після зупинки виміряйте пройдену відстань рулеткою."});
-all("[data-program]").forEach(b=>b.onclick=()=>send({type:"program",id:+b.dataset.program,speed:+$("speed").value}));
+all("[data-test-ms]").forEach(b=>b.onclick=()=>{if(selected===2&&!active().online){$("testStatus").textContent="Друга каретка офлайн. Спочатку відновіть зв’язок.";return}if(!ws||ws.readyState!==1){$("testStatus").textContent="Немає зв’язку із сайтом.";return}const ms=+b.dataset.testMs;send({type:"timed_test",direction:testDirection,durationMs:ms});$("testStatus").textContent="Запущено на "+(ms/1000)+" с. Після зупинки виміряйте пройдену відстань рулеткою."});
+all("[data-program]").forEach(b=>b.onclick=()=>send({type:"program",id:+b.dataset.program}));
 all("[data-servo]").forEach(b=>b.onclick=()=>send({type:"servo",enabled:true,angle:+b.dataset.servo}));
 $("servoOff").onclick=()=>send({type:"servo",enabled:false});
 function stopJog(event){
@@ -146,7 +256,7 @@ for(const [id,dir] of [["left","left"],["right","right"]]){
   e.preventDefault();
   b.setPointerCapture(e.pointerId);
   jogPointer=e.pointerId;
-  const refresh=()=>send({type:"jog",direction:dir,speed:+$("speed").value});
+  const refresh=()=>send({type:"jog",direction:dir});
   refresh();
   jogTimer=setInterval(refresh,160);
  };
@@ -156,7 +266,11 @@ for(const [id,dir] of [["left","left"],["right","right"]]){
 }
 window.addEventListener("blur",stopJog);
 document.addEventListener("visibilitychange",()=>{if(document.hidden)stopJog()});
-setInterval(()=>send({type:"heartbeat"}),400);
+setInterval(()=>{
+ if(connected&&performance.now()-lastStateAt>=500)disconnect(ws);
+},100);
+setInterval(()=>send({type:"heartbeat"}),200);
+setConnected(false);
 connect()
 })();
 </script></body></html>

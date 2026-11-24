@@ -17,6 +17,44 @@ inline void log(const char *event, const char *format = "", ...) {
   if (Serial.availableForWrite() >= int(size)) Serial.write((const uint8_t *)line, size);
 }
 
+enum class MotorFault : uint8_t { None, EncoderRead, PwmOutput, NoFeedback, Reversed, WheelMismatch, TrackOverrun };
+
+inline const char *motorFaultMessage(MotorFault fault) {
+  switch (fault) {
+    case MotorFault::EncoderRead: return "Помилка читання енкодера";
+    case MotorFault::PwmOutput: return "Помилка налаштування або запису ШІМ";
+    case MotorFault::NoFeedback: return "ШІМ задано, відліки стоять. Перевірте драйвер, мотор і енкодер";
+    case MotorFault::Reversed: return "Енкодер рахує в протилежний бік";
+    case MotorFault::WheelMismatch: return "Розбіжність між колесами понад 50 см";
+    case MotorFault::TrackOverrun: return "Вихід за межі зони спільного троса";
+    default: return "";
+  }
+}
+
+class MotorFeedbackCheck {
+ public:
+  void update(int duty, int64_t count, uint32_t now) {
+    const int8_t direction = (duty > 0) - (duty < 0);
+    if (direction == direction_) return;
+    direction_ = direction;
+    since_ = now;
+    count_ = count;
+    interval_ = 1000;
+  }
+  bool sample(int64_t count, uint32_t now, int64_t &progress) {
+    if (!direction_ || now - since_ < interval_) return false;
+    progress = direction_ * (count - count_);
+    since_ = now;
+    count_ = count;
+    interval_ = 500;
+    return true;
+  }
+ private:
+  int8_t direction_ = 0;
+  uint32_t since_ = 0, interval_ = 1000;
+  int64_t count_ = 0;
+};
+
 class Encoder {
  public:
   bool begin(const MotorSettings &cfg) {
