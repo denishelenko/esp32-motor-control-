@@ -31,7 +31,9 @@ th:first-child{text-align:left}small{color:#d1dacd}
  <label>Швидкість (ШІМ) <input id="speed" type="range" min="1" max="100" value="20"><output id="speedValue" for="speed">20%</output></label>
  <label>Гальмувати M1 раніше, тіків <input id="brakeM1" type="number" min="0" max="2147483647" step="1" value="__BRAKE_M1__" required></label>
  <label>Гальмувати M2 раніше, тіків <input id="brakeM2" type="number" min="0" max="2147483647" step="1" value="__BRAKE_M2__" required></label>
+ <label>Гальмівний тест: тримати вибраний ШІМ до гальма <input id="brakeTest" type="checkbox" checked></label>
 </div>
+<p><small>ШІМ наростає протягом 0,7 с. На короткому ході мотор може не встигнути набрати сталу швидкість.</small></p>
 <p><small>Більше тіків — раніше гальмування. Нуль — гальмування на цілі. Значення застосуються до наступного запуску.</small></p>
 <div class="buttons"><button data-direction="left" disabled>← Вліво</button><button data-direction="right" disabled>Вправо →</button></div>
 <button id="stop">СТОП</button>
@@ -46,7 +48,8 @@ th:first-child{text-align:left}small{color:#d1dacd}
 <tr><th scope="row">Ціль на хід</th><td id="goal0">—</td><td id="goal1">—</td></tr>
 <tr><th scope="row">Пройдено від старту, відл.</th><td id="offset0">—</td><td id="offset1">—</td></tr>
 <tr><th scope="row">Похибка після гальмування, відл.</th><td id="error0">—</td><td id="error1">—</td></tr>
-<tr><th scope="row">Похибка по колесу, мм</th><td id="errorMm0">—</td><td id="errorMm1">—</td></tr></tbody></table>
+<tr><th scope="row">Похибка по колесу, мм</th><td id="errorMm0">—</td><td id="errorMm1">—</td></tr>
+<tr><th scope="row">Хід після команди гальма, тіків</th><td id="brakeTravel0">—</td><td id="brakeTravel1">—</td></tr></tbody></table>
 <p><small>Перевір кількість обертів і мітки фізично. Ціль обчислюється за поточними параметрами енкодерів.</small></p>
 </main>
 <script>
@@ -71,7 +74,7 @@ async function poll(){
    if(!state.active)token=0;
    if(!busy)el("status").textContent=state.message;
   }
-  for(const key of ["count","goal","offset","error"])
+  for(const key of ["count","goal","offset","error","brakeTravel"])
    for(let i=0;i<2;i++)el(key+i).textContent=state[key]?.[i]??"—";
   for(const key of ["rpm","peakRpm"])
    for(let i=0;i<2;i++)el(key+i).textContent=format(state[key]?.[i],1);
@@ -85,7 +88,8 @@ buttons.forEach(button=>button.onclick=async()=>{
  if(!el("turns").reportValidity()||!el("brakeM1").reportValidity()||!el("brakeM2").reportValidity())return;
  const params=new URLSearchParams({turns:el("turns").value,speed:el("speed").value,
                                   motors:el("motors").value,direction:button.dataset.direction,
-                                  brakeM1:el("brakeM1").value,brakeM2:el("brakeM2").value});
+                                  brakeM1:el("brakeM1").value,brakeM2:el("brakeM2").value,
+                                  brakeTest:el("brakeTest").checked?"1":"0"});
  busy=true;updateButtons();
  try{
   const response=await fetch("/start?"+params,{method:"POST"});
@@ -274,6 +278,7 @@ class MotorCalibration {
       start_[i] = sampleCount_[i] = count_[i];
       changedAt_[i] = now;
       braking_[i] = false;
+      brakeProgress_[i] = 0;
       directionWarning_[i] = false;
       peakRpm_[i] = secondsPerTurn_[i] = 0;
       goal_[i] = selected(i) ? llround(turns * countsPerTurn(i)) : 0;
@@ -291,6 +296,7 @@ class MotorCalibration {
     if (remaining <= advance) {
       braking_[i] = true;
       brakeAt_[i] = now;
+      brakeProgress_[i] = progress;
       write(i, 0);
       log("BRAKE", "M%u LOW/LOW counts=%lld/%lld", i + 1, (long long)progress, (long long)goal_[i]);
       log("BRAKE", "M%u advance=%lld ticks", i + 1, (long long)advance);
@@ -304,7 +310,7 @@ class MotorCalibration {
     const double approachFraction = min(1.0, remaining / (0.5 * countsPerTurn(i)));
     const int approach = max(min(ApproachDuty, ceiling), int(ceiling * approachFraction));
     const int ramp = int(min(now - phaseAt_, uint32_t(700)) * ceiling / 700);
-    write(i, direction_ * min(approach, ramp));
+    write(i, direction_ * (brakeTest_ ? ramp : min(approach, ramp)));
     return false;
   }
   void serviceMove(uint32_t now) {
@@ -338,6 +344,7 @@ class MotorCalibration {
       if (turns > 0) secondsPerTurn_[i] = (changedAt_[i] - phaseAt_) / (1000.0f * turns);
       log("ROTATION", "M%u counts=%lld/%lld secondsPerTurn=%.2f", i + 1,
           (long long)progress[i], (long long)goal_[i], secondsPerTurn_[i]);
+      log("BRAKE", "M%u travel after brake=%lld ticks", i + 1, (long long)(progress[i] - brakeProgress_[i]));
     }
     finish(Phase::Done, exact ? "Ціль досягнуто за енкодером · звір мітки" : "Зупинка з похибкою · перевір відліки й мітки");
   }
@@ -347,10 +354,12 @@ class MotorCalibration {
     const uint8_t motors = boundedValue("motors", 3);
     const int32_t brakeM1 = brakeTicksArgument("brakeM1");
     const int32_t brakeM2 = brakeTicksArgument("brakeM2");
+    const String brakeTest = server_.arg("brakeTest");
     const String direction = server_.arg("direction");
     const uint32_t now = millis();
     JsonDocument d;
-    if (!turns || !speed || !motors || brakeM1 < 0 || brakeM2 < 0 || (direction != "right" && direction != "left")) {
+    if (!turns || !speed || !motors || brakeM1 < 0 || brakeM2 < 0 ||
+        (brakeTest != "0" && brakeTest != "1") || (direction != "right" && direction != "left")) {
       d["message"] = "Перевір оберти, ШІМ, мотор, напрямок і невід’ємні цілі тіки гальма";
       sendJson(400, d);
       return;
@@ -363,6 +372,7 @@ class MotorCalibration {
     selected_ = motors;
     runBrakeTicks_[0] = brakeM1;
     runBrakeTicks_[1] = brakeM2;
+    brakeTest_ = brakeTest == "1";
     direction_ = direction == "right" ? 1 : -1;
     token_ = esp_random() | 1U;
     leaseAt_ = now;
@@ -400,6 +410,7 @@ class MotorCalibration {
     auto offsets = d["offset"].to<JsonArray>();
     auto errors = d["error"].to<JsonArray>();
     auto errorsMm = d["errorMm"].to<JsonArray>();
+    auto brakeTravel = d["brakeTravel"].to<JsonArray>();
     auto rpm = d["rpm"].to<JsonArray>();
     auto peaks = d["peakRpm"].to<JsonArray>();
     auto seconds = d["secondsPerTurn"].to<JsonArray>();
@@ -422,9 +433,11 @@ class MotorCalibration {
         const int64_t error = stoppedProgress_[i] - goal_[i];
         errors.add(error);
         errorsMm.add(error * WheelCircumferenceMm / countsPerTurn(i));
+        brakeTravel.add(stoppedProgress_[i] - brakeProgress_[i]);
       } else {
         errors.add(nullptr);
         errorsMm.add(nullptr);
+        brakeTravel.add(nullptr);
       }
     }
     sendJson(200, d);
@@ -444,6 +457,7 @@ class MotorCalibration {
   const char *message_ = "Оберіть кількість обертів";
   bool encoderReady_[2]{}, pwmReady_[2]{}, braking_[2]{};
   bool directionWarning_[2]{};
+  bool brakeTest_ = true;
   uint32_t brakeAt_[2]{};
   uint8_t selected_ = 0;
   int direction_ = 1;
@@ -451,7 +465,7 @@ class MotorCalibration {
   int32_t runBrakeTicks_[2] = {M1BrakeAdvanceTicks, M2BrakeAdvanceTicks};
   uint32_t phaseAt_ = 0, runTimeoutMs_ = 0, changedAt_[2]{}, leaseAt_ = 0, token_ = 0;
   int applied_[2]{}, maxDuty_[2]{};
-  int64_t goal_[2]{}, count_[2]{}, start_[2]{}, stoppedProgress_[2]{};
+  int64_t goal_[2]{}, count_[2]{}, start_[2]{}, stoppedProgress_[2]{}, brakeProgress_[2]{};
   uint32_t sampleAt_ = 0;
   int64_t sampleCount_[2]{};
   float rpm_[2]{}, peakRpm_[2]{}, secondsPerTurn_[2]{};
