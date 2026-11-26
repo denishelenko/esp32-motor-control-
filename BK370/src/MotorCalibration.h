@@ -171,6 +171,7 @@ class MotorCalibration {
   static constexpr uint32_t MinRunTimeoutMs = 20000, TimeoutPerTurnMs = 10000;
   static constexpr uint32_t QuietMs = 200;
   static constexpr uint32_t SampleMs = 100;
+  static constexpr uint32_t WifiReportMs = 10000;
   static constexpr int MinDrivePercent = 5;
   static constexpr int ApproachPwmPercent[2] = {15, 15};
   // Encoder counts before the final target at which each motor starts braking.
@@ -186,6 +187,9 @@ class MotorCalibration {
 
   void begin(const char *homeSsid = nullptr, const char *homePassword = nullptr) {
     Serial.begin(115200);
+    homeWifi_ = homeSsid != nullptr;
+    homeSsidConfigured_ = homeWifi_ && *homeSsid;
+    log("BOOT", "%s", homeWifi_ ? "motor_calibration_home (STA)" : "motor_calibration (AP)");
     for (unsigned i = 0; i < 2; ++i) {
       const auto &cfg = settings_[i];
       // Start both driver inputs LOW and attach separate channels.
@@ -206,18 +210,18 @@ class MotorCalibration {
       if (!pwmReady_[i]) hardwareFault(i, MotorFault::PwmOutput);
       else if (!encoderReady_[i]) hardwareFault(i, MotorFault::EncoderRead);
     }
-    homeWifi_ = homeSsid != nullptr;
     if (homeWifi_) {
       WiFi.mode(WIFI_STA);
       WiFi.setAutoReconnect(true);
-      if (*homeSsid) {
+      if (homeSsidConfigured_) {
         WiFi.begin(homeSsid, homePassword);
         log("WIFI", "Connecting to home Wi-Fi (2.4 GHz)");
-      } else log("WIFI", "Set HOME_WIFI_SSID in the Home sketch");
+      } else log("WIFI", "HOME_WIFI_SSID is empty");
     } else {
       WiFi.mode(WIFI_AP);
-      WiFi.softAP(SSID, Password, Channel);
-      announceSite(WiFi.softAPIP());
+      apStarted_ = WiFi.softAP(SSID, Password, Channel);
+      if (apStarted_) announceSite(WiFi.softAPIP());
+      else log("WIFI", "Failed to start Motor-Control AP");
     }
     server_.on("/", HTTP_GET, [this] {
       String html(MotorCalibrationHtml);
@@ -259,6 +263,10 @@ class MotorCalibration {
       if ((readyMotors() & selected_) != selected_) finish(Phase::Failed, selectedFault(selected_));
       else serviceMove(now);
     }
+    if (!active() && now - wifiReportAt_ >= WifiReportMs) {
+      wifiReportAt_ = now;
+      reportWifi();
+    }
     server_.handleClient();
   }
 
@@ -266,8 +274,9 @@ class MotorCalibration {
   void announceSite(IPAddress ip) {
     mdnsReady_ = MDNS.begin("motor-control");
     if (mdnsReady_) MDNS.addService("http", "tcp", 80);
-    log("WEB", "http://%s/%s", ip.toString().c_str(),
-        mdnsReady_ ? " or http://motor-control.local/" : "");
+    log("WEB", "http://%s/ | motor-control.local %s", ip.toString().c_str(),
+        mdnsReady_ ? "OK" : "failed");
+    wifiReportAt_ = millis();
   }
   void serviceHomeWifi() {
     const IPAddress ip = WiFi.status() == WL_CONNECTED ? WiFi.localIP() : IPAddress();
@@ -279,6 +288,33 @@ class MotorCalibration {
     homeIp_ = ip;
     if (uint32_t(ip)) announceSite(ip);
     else log("WIFI", "Home Wi-Fi disconnected");
+  }
+  void reportWifi() {
+    if (homeWifi_ && !homeSsidConfigured_) {
+      log("WIFI", "Home STA: HOME_WIFI_SSID is empty");
+      return;
+    }
+    const IPAddress ip = homeWifi_ ? homeIp_ : apStarted_ ? WiFi.softAPIP() : IPAddress();
+    if (uint32_t(ip)) {
+      if (!mdnsReady_) announceSite(ip);
+      else log("WEB", "%s http://%s/ | motor-control.local OK", homeWifi_ ? "STA" : "AP", ip.toString().c_str());
+      return;
+    }
+    if (!homeWifi_) {
+      log("WIFI", "Motor-Control AP unavailable");
+      return;
+    }
+    const wl_status_t status = WiFi.status();
+    const char *detail = "waiting for connection";
+    switch (status) {
+      case WL_NO_SSID_AVAIL: detail = "SSID not found"; break;
+      case WL_CONNECT_FAILED: detail = "connection failed"; break;
+      case WL_CONNECTION_LOST: detail = "connection lost"; break;
+      case WL_DISCONNECTED: detail = "disconnected"; break;
+      case WL_CONNECTED: detail = "waiting for DHCP IP"; break;
+      default: break;
+    }
+    log("WIFI", "Home STA: %s (%d)", detail, int(status));
   }
   void hardwareFault(unsigned i, MotorFault reason) {
     motorFaults_[i] = reason;
@@ -649,7 +685,8 @@ class MotorCalibration {
 
   WebServer server_{80};
   IPAddress homeIp_{};
-  bool homeWifi_ = false, mdnsReady_ = false;
+  bool homeWifi_ = false, homeSsidConfigured_ = false, apStarted_ = false, mdnsReady_ = false;
+  uint32_t wifiReportAt_ = 0;
   const MotorSettings (&settings_)[2];
   Encoder encoders_[2];
   MotorFeedbackCheck feedback_[2];
