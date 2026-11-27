@@ -52,18 +52,21 @@ inline const char WEB_HTML[] PROGMEM = R"HTML(
 @keyframes offlinePulse{50%{opacity:.3;box-shadow:0 0 13px 4px #ff898977}}
 @media(prefers-reduced-motion:reduce){.connectionPulse{animation:none}}
 .driveFault{padding:9px 11px;margin-top:6px;border:1px solid #ce6860;border-radius:9px;color:#ffaaaa;background:#4c2826;font-weight:700;white-space:pre-line}
+.pwmLimitRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:.5rem 0;color:var(--muted)}
+.pwmLimitRow input{width:4rem;padding:5px;color:var(--paper);background:var(--ink);border:1px solid var(--mid);border-radius:6px}
+.logLink{color:var(--paper);font-size:.85rem}
 </style></head><body><main>
-<header><h1>Дві каретки</h1><button id="link" class="chain" aria-pressed="false" title="Окремі команди для кожної каретки"><svg viewBox="0 0 100 34" aria-hidden="true"><g class="linkedIcon" fill="none" stroke="currentColor" stroke-width="6"><path d="M16 4H28a13 13 0 0 1 0 26H16a13 13 0 0 1 0-26Z"/><path d="M44 4H56a13 13 0 0 1 0 26H44a13 13 0 0 1 0-26Z"/><path d="M72 4H84a13 13 0 0 1 0 26H72a13 13 0 0 1 0-26Z"/></g><path class="brokenIcon" d="M44.0,10.7L44.0,16.7L55.8,16.7L55.6,10.4ZM58.1,9.8L58.1,17.6L59.8,21.2L62.8,24.5L66.2,26.4L82.4,31.8L86.8,32.1L91.8,30.9L94.5,29.2L96.6,27.0L99.0,22.5L99.0,14.5L97.3,10.9L94.3,7.6L91.3,5.9L75.3,0.6L68.7,0.2L65.3,1.3L70.2,3.0L73.7,6.5L88.5,11.2L91.6,13.2L93.3,16.2L93.6,20.0L91.9,23.4L89.0,25.7L84.1,26.1L67.9,20.7L65.7,19.2L63.9,16.6L63.8,11.5ZM54.9,0.2L53.0,5.8L66.5,10.3L67.0,12.2L65.6,13.7L65.9,15.6L67.9,18.3L69.1,18.4L70.2,17.8L71.9,15.9L73.0,13.3L73.0,10.3L71.0,6.4L67.5,4.2ZM45.0,0.2L32.2,4.2L29.0,6.2L27.0,9.5L26.9,13.3L29.2,17.5L31.4,18.4L33.2,17.0L34.2,13.8L32.7,12.2L33.5,10.2L46.8,5.8ZM41.7,9.8L36.1,11.5L35.9,16.6L34.2,19.2L31.9,20.7L15.6,26.1L10.8,25.7L7.5,22.9L6.2,20.0L6.2,17.1L8.1,13.2L11.3,11.2L26.1,6.5L29.2,3.3L34.4,1.3L31.0,0.2L24.5,0.6L8.5,5.9L5.5,7.6L2.7,10.7L1.0,13.9L0.4,16.5L0.4,20.6L1.0,23.2L2.7,26.4L5.3,29.2L10.4,31.8L17.3,31.8L35.8,25.3L39.4,22.1L41.3,18.7L42.2,15.6Z"/></svg></button><div class="status"><i id="dot" class="dot"></i><span id="status">підключення…</span></div></header>
+<header><h1>Дві каретки</h1><button id="link" class="chain" aria-pressed="false" title="Окремі команди для кожної каретки"><svg viewBox="0 0 100 34" aria-hidden="true"><g class="linkedIcon" fill="none" stroke="currentColor" stroke-width="6"><path d="M16 4H28a13 13 0 0 1 0 26H16a13 13 0 0 1 0-26Z"/><path d="M44 4H56a13 13 0 0 1 0 26H44a13 13 0 0 1 0-26Z"/><path d="M72 4H84a13 13 0 0 1 0 26H72a13 13 0 0 1 0-26Z"/></g><path class="brokenIcon" d="M44.0,10.7L44.0,16.7L55.8,16.7L55.6,10.4ZM58.1,9.8L58.1,17.6L59.8,21.2L62.8,24.5L66.2,26.4L82.4,31.8L86.8,32.1L91.8,30.9L94.5,29.2L96.6,27.0L99.0,22.5L99.0,14.5L97.3,10.9L94.3,7.6L91.3,5.9L75.3,0.6L68.7,0.2L65.3,1.3L70.2,3.0L73.7,6.5L88.5,11.2L91.6,13.2L93.3,16.2L93.6,20.0L91.9,23.4L89.0,25.7L84.1,26.1L67.9,20.7L65.7,19.2L63.9,16.6L63.8,11.5ZM54.9,0.2L53.0,5.8L66.5,10.3L67.0,12.2L65.6,13.7L65.9,15.6L67.9,18.3L69.1,18.4L70.2,17.8L71.9,15.9L73.0,13.3L73.0,10.3L71.0,6.4L67.5,4.2ZM45.0,0.2L32.2,4.2L29.0,6.2L27.0,9.5L26.9,13.3L29.2,17.5L31.4,18.4L33.2,17.0L34.2,13.8L32.7,12.2L33.5,10.2L46.8,5.8ZM41.7,9.8L36.1,11.5L35.9,16.6L34.2,19.2L31.9,20.7L15.6,26.1L10.8,25.7L7.5,22.9L6.2,20.0L6.2,17.1L8.1,13.2L11.3,11.2L26.1,6.5L29.2,3.3L34.4,1.3L31.0,0.2L24.5,0.6L8.5,5.9L5.5,7.6L2.7,10.7L1.0,13.9L0.4,16.5L0.4,20.6L1.0,23.2L2.7,26.4L5.3,29.2L10.4,31.8L17.3,31.8L35.8,25.3L39.4,22.1L41.3,18.7L42.2,15.6Z"/></svg></button><div class="status"><i id="dot" class="dot"></i><span id="status">підключення…</span></div><a class="logLink" href="/logs" target="_blank" rel="noopener">Журнал</a></header>
 <section class="carriages"><button class="carriage active" data-carriage="1"><span id="state1" class="state online level-4"><i class="signal"><b></b><b></b><b></b><b></b></i><span class="stateLabel">онлайн</span></span><svg class="cart" viewBox="0 0 210 100" aria-label="каретка з тросом знизу"><path class="cable" d="M4 78H206"/><path class="carriage-stem" d="M79 46H131L124 77Q123 86 113 86H97Q87 86 86 77Z"/><path class="carriage-bar" d="M30 23H180Q190 23 190 33V47Q190 55 180 55H30Q20 55 20 47V33Q20 23 30 23Z"/><path class="carriage-panel" d="M54 31H156L151 47H59Z"/><circle class="wheel-shell" cx="30" cy="39" r="14"/><circle class="wheel-face" cx="30" cy="39" r="7"/><circle class="wheel-hub" cx="30" cy="39" r="2"/><circle class="wheel-shell" cx="180" cy="39" r="14"/><circle class="wheel-face" cx="180" cy="39" r="7"/><circle class="wheel-hub" cx="180" cy="39" r="2"/><circle class="led-halo" cx="105" cy="39" r="12"/><circle class="led-core" cx="105" cy="39" r="5"/></svg></button><button class="carriage" data-carriage="2"><span id="state2" class="state off level-0"><i class="signal"><b></b><b></b><b></b><b></b></i><span class="stateLabel">офлайн</span></span><svg class="cart" viewBox="0 0 210 100" aria-label="каретка з тросом знизу"><path class="cable" d="M4 78H206"/><path class="carriage-stem" d="M79 46H131L124 77Q123 86 113 86H97Q87 86 86 77Z"/><path class="carriage-bar" d="M30 23H180Q190 23 190 33V47Q190 55 180 55H30Q20 55 20 47V33Q20 23 30 23Z"/><path class="carriage-panel" d="M54 31H156L151 47H59Z"/><circle class="wheel-shell" cx="30" cy="39" r="14"/><circle class="wheel-face" cx="30" cy="39" r="7"/><circle class="wheel-hub" cx="30" cy="39" r="2"/><circle class="wheel-shell" cx="180" cy="39" r="14"/><circle class="wheel-face" cx="180" cy="39" r="7"/><circle class="wheel-hub" cx="180" cy="39" r="2"/><circle class="led-halo" cx="105" cy="39" r="12"/><circle class="led-core" cx="105" cy="39" r="5"/></svg></button></section>
-<section class="telemetry" aria-label="Батарея й енкодери"><div id="battery">Батарея —</div><div id="encoder">Енкодери —</div><div id="measuredSpeed">Швидкість коліс —</div><div id="odometry" hidden></div><div id="parkingStatus" role="status" hidden></div><div id="interlock" role="status"></div><div id="notice" role="status"></div><div id="driveFault" class="driveFault" role="alert" hidden></div><button type="button" id="batteryReset" hidden>Скинути блокування після заряджання</button></section><div class="readout"><strong id="pos">0.00</strong><strong> м</strong> <span>від центру · <b id="which">каретка 1</b></span></div>
+<section class="telemetry" aria-label="Батарея й енкодери"><div id="battery">Вхід драйвера —</div><div id="encoder">Енкодери —</div><div id="measuredSpeed">Швидкість коліс —</div><div id="odometry" hidden></div><div id="parkingStatus" role="status" hidden></div><div id="interlock" role="status"></div><div id="notice" role="status"></div><div id="driveFault" class="driveFault" role="alert" hidden></div><button type="button" id="batteryReset" hidden>Скинути блокування після заряджання</button></section><div class="readout"><strong id="pos">0.00</strong><strong> м</strong> <span>від центру · <b id="which">каретка 1</b></span></div>
 <div class="railWrap"><div id="rail" class="rail"></div><span id="node1" class="nodeMarker" hidden>1</span><span id="node2" class="nodeMarker" hidden>2</span><div class="centre"></div><svg id="targetIcon" class="ipsc" viewBox="0 0 400 520" style="left:50%" aria-label="IPSC мішень"><path class="target-outline" d="M154 90H246L335 204V292L246 430H154L65 292V204Z"/><path class="target-rim" d="M156 94H244L331 206V290L244 426H156L69 290V206Z"/><path class="target-zone" d="M154 94H246L292 204V289L226 361H174L108 289V204Z"/><path class="target-zone" d="M186 106H214L244 204V257L214 304H186L156 257V204Z"/><text x="200" y="218">A</text><text x="138" y="218">C</text><text x="262" y="218">C</text><text x="92" y="218">D</text><text x="308" y="218">D</text></svg><i id="targetDot" class="targetDot" style="left:50%" aria-label="вибрана точка"></i><input id="target" class="target" type="range" min="-8" max="8" step="0.05" value="0"><div class="ticks"><i class="tick major" style="left:0%"><span>−8 м</span></i><i class="tick" style="left:6.25%"></i><i class="tick major" style="left:12.5%"><span>−6</span></i><i class="tick" style="left:18.75%"></i><i class="tick major" style="left:25%"><span>−4</span></i><i class="tick" style="left:31.25%"></i><i class="tick major" style="left:37.5%"><span>−2</span></i><i class="tick" style="left:43.75%"></i><i class="tick major" style="left:50%"><span>центр</span></i><i class="tick" style="left:56.25%"></i><i class="tick major" style="left:62.5%"><span>+2</span></i><i class="tick" style="left:68.75%"></i><i class="tick major" style="left:75%"><span>+4</span></i><i class="tick" style="left:81.25%"></i><i class="tick major" style="left:87.5%"><span>+6</span></i><i class="tick" style="left:93.75%"></i><i class="tick major" style="left:100%"><span>+8 м</span></i></div></div>
 <form id="preciseTarget" class="preciseTarget"><label>Ціль, м<input id="targetMetres" type="number" min="-8" max="8" step="0.001" inputmode="decimal" placeholder="2.375" required disabled></label><button id="sendTarget" type="submit" disabled>Їхати до точки</button></form>
-<div class="speed" aria-label="Максимальна швидкість у кілометрах за годину"><span>Макс. швидкість, км/год</span><button type="button" data-speed="5">5</button><button type="button" data-speed="10">10</button><button type="button" data-speed="15">15</button></div><button id="stop" class="stop">СТАРТ</button><p class="sectionTitle">Режими роботи</p>
+<div class="speed" aria-label="Максимальна швидкість у кілометрах за годину"><span>Макс. швидкість, км/год</span><button type="button" data-speed="5">5</button><button type="button" data-speed="10">10</button><button type="button" data-speed="15">15</button></div><label id="pwmLimitRow" class="pwmLimitRow">Ліміт приводу <input id="pwmLimit" type="number" min="1" max="100" step="1" inputmode="numeric" required> % <span id="speedLimitEstimate"></span></label><button id="stop" class="stop">СТАРТ</button><p class="sectionTitle">Режими роботи</p>
 <div class="automation"><div class="programs"><button data-program="1" class="active">Маятник<small>від краю до краю</small></button><button data-program="2">Драбинка<small>зупинка кожні 2 м</small></button><button data-program="3">Ривки<small>переходи 1–3 м</small></button><button data-program="4">Рандом<small>довгі переходи від 4 м</small></button></div><section class="servoPanel"><div class="servoTitle">Керування сервоприводом</div><div class="servoButtons"><button data-servo="45" class="selected">45°</button><button data-servo="90">90°</button><button id="servoOff" class="servoOff active">Вимк.</button></div><div class="servoVisual" aria-hidden="true"><div class="servoDial"><i id="servoArm" class="servoArm"></i></div></div><div id="servoState" class="servoState">вимкнено · 0°</div></section></div>
 <details id="calibration"><summary>Ручне калібрування</summary><section id="sharedSetup" hidden><p id="sharedInstructions"></p><button type="button" id="survey">Відкалібрувати обидві до центра</button> <button type="button" id="clearReference">Скинути мітку вибраної</button><p id="surveyState" role="status"></p></section><div class="manual"><button id="left">Вліво</button><button id="zero" class="zero">Позначити поточне місце як центр</button><button id="right">Вправо</button></div><section id="timedTest" class="timedTest"><p>Тест однієї вибраної каретки. Поставте її так, щоб вистачило місця для руху. Для калібрування запишіть різницю показників енкодерів і відстань, виміряну рулеткою.</p><div class="testRow"><button data-test-direction="left" class="chosen">← Вліво</button><button data-test-direction="right">Вправо →</button></div><div class="testRow"><button data-test-ms="1000">1 с</button><button data-test-ms="2000">2 с</button><button data-test-ms="5000">5 с</button><button data-test-ms="10000">10 с</button></div><p id="testStatus" role="status">Оберіть напрямок і тривалість. Ліміт швидкості задають кнопки вище. СТОП перериває тест.</p><button type="button" id="brake">Гальмо · LOW/LOW</button></section><section class="timedTest"><p>Перевірка підсвітки</p><div class="testRow"><button data-light="red">Червоний</button><button data-light="green">Зелений</button><button data-light="mosfet">Строб 12 В</button></div><p id="lightStatus" role="status">Кожен тест блимає 3 секунди.</p></section></details>
 </main><div id="noConnection" role="status"><i class="connectionPulse" aria-hidden="true"></i><strong>Немає зв’язку</strong></div><script>
 (()=>{
-const single=__SINGLE__,shared=__SHARED__;
+const single=__SINGLE__,shared=__SHARED__,mixedGan=__MIXED_GAN__;
 document.title="Керування каретками";
 document.querySelector("h1").textContent=single?"Каретка":"Каретки";
 if(single){document.getElementById("link").hidden=true;document.querySelector('[data-carriage="2"]').hidden=true;}
@@ -114,12 +117,30 @@ function redraw(){
  const maxStep=Math.max(0,now-visual.last)*90/Math.max(1,Number(c.servoTravel90Ms)||350);
  const delta=targetAngle-visual.angle;
  visual.angle+=Math.sign(delta)*Math.min(Math.abs(delta),maxStep);visual.last=now;
+ const gan=mixedGan&&selected===2;
+ $("pwmLimitRow").hidden=gan;
+ $("pwmLimit").disabled=!c.online||gan;
+ if(document.activeElement!==$("pwmLimit"))$("pwmLimit").value=c.maxPwm??"";
+ $("speedLimitEstimate").textContent=c.online&&Number.isFinite(c.maxSpeed)?
+   "· Стеля за ШІМ ≈ "+(c.maxSpeed*3.6).toFixed(1)+" км/год":"";
+ const ganLimit=Number(c.estimatedTravelLimit)||0;
+ if(mixedGan){
+  const edge=gan?ganLimit:8;
+  $("target").min=$("targetMetres").min=-edge;
+  $("target").max=$("targetMetres").max=edge;
+  $("target").style.left=pct(-edge);
+  $("target").style.width="calc("+pct(edge)+" - "+pct(-edge)+")";
+  $("timedTest").hidden=gan;
+  $("zero").disabled=gan&&(!c.online||!c.calibrated||c.moving);
+  $("left").disabled=$("right").disabled=gan&&(!c.online||!c.centered||ganLimit<=0.01);
+ }
  const positionKnown=c.online&&c.centered&&c.calibrated;
  $("odometry").hidden=!positionKnown||!Number.isFinite(c.fromReference);
  if(!$("odometry").hidden){
   const reference=shared?"Від зовнішньої мітки":"Від точки відліку";
   const edge=selected===1?c.leftWheelM+rail:rail-c.rightWheelM;
-  $("odometry").textContent=reference+" "+c.fromReference.toFixed(3)+" м · ліве колесо "+c.leftWheelM.toFixed(3)+" м · праве "+c.rightWheelM.toFixed(3)+" м"+
+  if(gan) $("odometry").textContent="Оцінка за часом від центра "+c.fromReference.toFixed(2)+" м · межа ±"+ganLimit.toFixed(2)+" м";
+  else $("odometry").textContent=reference+" "+c.fromReference.toFixed(3)+" м · ліве колесо "+c.leftWheelM.toFixed(3)+" м · праве "+c.rightWheelM.toFixed(3)+" м"+
     (shared?" · від краю до зовнішнього колеса "+edge.toFixed(3)+" м":"");
  }
  const parkSeconds=Math.ceil(parkWaitMs/1000);
@@ -152,10 +173,12 @@ function redraw(){
   $("surveyState").textContent=surveying?"Каретки їдуть до меж своїх зон…":sharedReady?"Трос відкалібровано":state.map((x,i)=>"Каретка "+(i+1)+(x.centered?" · край позначено":" · позначте край")).join(" | ");
  }
  $("battery").hidden=c.hasIna226===false;
- $("battery").textContent=c.online&&Number.isFinite(c.volts)?"Батарея ≈ "+c.charge.toFixed(0)+"% · "+c.volts.toFixed(2)+" В"+(Number.isFinite(c.amps)?" · "+c.amps.toFixed(2)+" А":""):"Батарея —";
- $("encoder").textContent=c.online&&Number.isFinite(c.enc1)?"Імпульси A/B · M1 "+c.enc1+" · M2 "+c.enc2:"Енкодери —";
+ $("battery").textContent=c.online&&Number.isFinite(c.volts)?"Вхід драйвера · "+c.volts.toFixed(2)+" В"+
+   (Number.isFinite(c.amps)?" · обидва мотори "+c.amps.toFixed(2)+" А · "+c.watts.toFixed(1)+" Вт":" · струм недоступний")+
+   (Number.isFinite(c.charge)?" · заряд ≈ "+c.charge.toFixed(0)+"%":""):"Вхід драйвера —";
+ $("encoder").textContent=gan?"GAN · позиція за часом":c.online&&Number.isFinite(c.enc1)?"Імпульси A/B · M1 "+c.enc1+" · M2 "+c.enc2:"Енкодери —";
  const measured=Number.isFinite(c.wheelSpeed1)&&Number.isFinite(c.wheelSpeed2);
- $("measuredSpeed").textContent=!c.online||!Number.isFinite(c.countsPerSec1)?"Швидкість коліс —":
+ $("measuredSpeed").textContent=gan?"ШІМ калібрування · "+(c.speed??"—")+"%":!c.online||!Number.isFinite(c.countsPerSec1)?"Швидкість коліс —":
    measured?"Швидкість коліс · M1 "+(c.wheelSpeed1*3.6).toFixed(2)+" км/год ("+c.wheelRpm1.toFixed(0)+" об/хв) · M2 "+(c.wheelSpeed2*3.6).toFixed(2)+" км/год ("+c.wheelRpm2.toFixed(0)+" об/хв)":
    "Частота енкодерів · M1 "+Math.round(c.countsPerSec1)+" · M2 "+Math.round(c.countsPerSec2)+" відл./с";
  $("lightStatus").textContent=lightNames[c.lightTest]?lightNames[c.lightTest]+" блимає…":"Кожен тест блимає 3 секунди.";
@@ -165,20 +188,24 @@ function redraw(){
  const message=faults.join("\n");
  if($("driveFault").textContent!==message)$("driveFault").textContent=message;
  $("driveFault").hidden=!faults.length;
- $("interlock").textContent=!c.online?"Офлайн":c.locked?"Зупинка · низька напруга":c.fault?"":!c.ready?"Приводи заблоковані":!Number.isFinite(c.maxSpeed)?"Швидкість ще не відкалібрована · доступний тест за часом":!positionKnown?"Для руху в метрах позначте точку відліку":shared&&!sharedReady?"Для руху в метрах відкалібруйте обидві каретки":"";
+ $("interlock").textContent=!c.online?"Офлайн":c.locked?"Зупинка · низька напруга":c.fault?"":!c.ready?"Приводи заблоковані":gan&&!c.calibrated?"Внесіть заміри в обидва боки та довжину троса в PairSettings.h":gan&&ganLimit<=0.01?"Запас вичерпано. Встановіть каретку в центр та підтвердьте мітку":!Number.isFinite(c.maxSpeed)?"Швидкість ще не відкалібрована · доступний тест за часом":!positionKnown?"Для руху в метрах позначте точку відліку":shared&&!sharedReady?"Для руху в метрах відкалібруйте обидві каретки":"";
  $("batteryReset").hidden=c.hasIna226===false||!c.locked;
- $("target").disabled=!c.ready||!positionKnown||!Number.isFinite(c.maxSpeed)||(shared&&!sharedReady);
+ $("target").disabled=!c.ready||!positionKnown||!Number.isFinite(c.maxSpeed)||(gan&&ganLimit<=0.01)||(shared&&!sharedReady);
  $("targetMetres").disabled=$("sendTarget").disabled=$("target").disabled;
  $("targetIcon").hidden=shared||!positionKnown;
  $("targetDot").hidden=!positionKnown;
- $("pos").textContent=positionKnown?p.toFixed(3):"—";$("which").textContent="каретка "+selected;
+ $("pos").textContent=positionKnown?p.toFixed(3):"—";$("which").textContent=mixedGan?(gan?"GAN · оцінка":"BK370"):"каретка "+selected;
  $("targetIcon").style.left=pct(p);$("targetDot").style.left=pct(t);
  if(!drag)$("target").value=t;
- all("[data-speed]").forEach(b=>b.setAttribute("aria-pressed",Number(b.dataset.speed)===Number(c.speed||5)));
+ all("[data-speed]").forEach(b=>{
+  b.disabled=gan;
+  b.setAttribute("aria-pressed",!gan&&Number(b.dataset.speed)===Number(c.speed||5));
+ });
  const operating=(shared||linked?state:[c]).some(x=>x.moving||x.servoEnabled||x.lightTest)||surveying||parking||parkWaitMs>0;
  $("stop").textContent=operating?"СТОП":"СТАРТ";
- $("stop").disabled=!operating&&!(c.ready&&positionKnown&&(!shared||sharedReady));
- all("[data-program]").forEach(b=>b.disabled=$("stop").disabled);
+ const canStart=c.ready&&positionKnown&&(!gan||ganLimit>0.01)&&(!shared||sharedReady);
+ $("stop").disabled=!operating&&!canStart;
+ all("[data-program]").forEach(b=>b.disabled=!canStart);
  if(c.mode==="тест часу")$("testStatus").textContent="Тест триває: "+(Math.max(0,Number(c.testRemainingMs)||0)/1000).toFixed(1)+" с. СТОП перериває рух.";
  const phase=visual.angle<targetAngle-1?"відкривається":visual.angle>targetAngle+1?"закривається":targetAngle?"відкрито":"закрито";
  $("servoState").textContent=c.servoEnabled?phase+" · "+Math.round(visual.angle)+"°":"вимкнено · 0°";
@@ -221,6 +248,10 @@ function connect(){
 all(".carriage").forEach(b=>b.onclick=()=>{stopJog();selected=Number(b.dataset.carriage);redraw()});
 $("link").onclick=()=>send({type:"link",enabled:!linked});
 all("[data-speed]").forEach(b=>b.onclick=()=>send({type:"speed",speed:Number(b.dataset.speed)}));
+$("pwmLimit").onchange=()=>{
+ const pwm=$("pwmLimit");
+ if(pwm.reportValidity())send({type:"pwm_limit",percent:pwm.valueAsNumber});
+};
 $("target").onpointerdown=()=>drag=true;
 $("target").onpointercancel=()=>{drag=false;redraw()};
 $("target").oninput=()=>$("targetDot").style.left=pct(+$("target").value);

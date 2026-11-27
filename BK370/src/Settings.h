@@ -34,7 +34,6 @@ constexpr const MotorSettings (&motorSettingsFor(bool carriage2))[2] {
 }
 constexpr double NominalCountsPerWheel = 11.0 * 9.3 * 4.0;
 constexpr float NominalWheelRpm = 1452.0f;
-constexpr float NominalCountsPerSecond = NominalWheelRpm * NominalCountsPerWheel / 60.0;
 // Enable only after checking the power supply and hardware current limiting.
 // Position commands additionally require calibration and a fresh center.
 constexpr bool DriveCommissioned = false;
@@ -42,6 +41,8 @@ constexpr uint8_t ServoPin = 21, StrobePin = 16, GreenPin = 17, RedPin = 18;
 constexpr uint16_t ServoTravel90Ms = 350;
 constexpr uint8_t SdaPin = 8, SclPin = 9, InaAddress = 0x40;
 constexpr float ShuntOhms = 0.010f; // R010. Verify the installed shunt.
+// True when the motor supply is wired directly to the 3S battery through the shunt.
+constexpr bool InaMeasuresBatteryFeed = true;  // Set false if a regulator holds the motor rail at 12 V.
 constexpr uint16_t EmptyMv = 10000, FullMv = 12400;
 constexpr uint16_t CutoffMv = EmptyMv + (FullMv - EmptyMv + 9) / 10;
 constexpr uint16_t RecoveryMv = CutoffMv + 260;
@@ -77,7 +78,20 @@ constexpr float DefaultSpeedKmh = 5.0f;
 constexpr bool speedPreset(int kmh) { return kmh == 5 || kmh == 10 || kmh == 15; }
 constexpr float DutyRisePerSec = 0.50f;
 // Initial estimate of the duty needed to overcome drivetrain friction.
-constexpr float StartingDuty = 0.12f;
+constexpr uint8_t CalibratedStartPwmPercent[2] = {8, 8};
+constexpr uint8_t CalibratedApproachPwmPercent[2] = {15, 15};
+constexpr uint8_t DefaultMaxPwmPercent = 20;
+constexpr uint8_t MinDrivePercent = 5;
+constexpr float drivePwmFraction(uint8_t percent) {
+  return percent == 0 ? 0.0f : (MinDrivePercent + (100.0f - MinDrivePercent) * (percent - 1) / 99.0f) / 100.0f;
+}
+constexpr uint32_t StartBoostMs = 250;
+constexpr float ApproachTurnsPerSecond = 1.0f;
+constexpr float ApproachTurns = 0.25f;
+constexpr float AccelTurnsPerSecondSquared = 8.0f;
+constexpr float DecelTurnsPerSecondSquared = 5.0f;
+constexpr float SpeedKp = 0.045f;
+constexpr float SpeedKi = 0.12f;
 constexpr uint32_t RampUpMs = 500, RampDownMs = 450;
 constexpr float SlowZoneM = 1.0f;
 constexpr float FinalBrakeM = 0.03f;
@@ -85,7 +99,7 @@ constexpr float TargetToleranceM = 0.01f;
 constexpr float ProgramOvershootToleranceM = 0.05f;
 constexpr float ApproachMinScale = 0.12f;
 constexpr float ApproachBrakeMarginMps = 0.025f;
-constexpr float FinalCreepMps = 0.10f, FinalCreepDutyLimit = 0.30f;
+constexpr float FinalCreepMps = 0.10f;
 constexpr uint32_t BrakeQuietMs = 200, FinalApproachTimeoutMs = 5000;
 static_assert(SlowZoneM > FinalBrakeM && FinalBrakeM > TargetToleranceM && TargetToleranceM > 0);
 static_assert(ApproachMinScale > 0 && ApproachMinScale < 1);

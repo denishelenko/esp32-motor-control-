@@ -50,6 +50,8 @@ table{width:100%;border-collapse:collapse;font-size:.87rem}td,th{text-align:left
 <label>Відстань, см<input id="distance" type="number" inputmode="decimal" min="0" max="100000" step="any"></label>
 <button id="record" disabled>Записати вимір</button>
 </div>
+<p>Для комплекту BK370 + GAN зроби вимір вліво і вправо на однаковому ШІМ. Із останніх завершених вимірів на поточному ШІМ скопіюй параметри в PairSettings.h.</p>
+<pre id="pairCalibration"></pre>
 <table><thead><tr><th>Напрямок</th><th>ШІМ</th><th>Час</th><th>Відстань</th><th>Середня</th></tr></thead><tbody id="samples"></tbody></table>
 <p><small>Таблиця зберігається в цьому браузері.</small></p>
 </section>
@@ -107,6 +109,14 @@ function showSamples() {
     return row;
   });
   byId("samples").replaceChildren(...rows);
+  const pwm=Number(byId("speed").value);
+  const exportSample=(direction,name)=>{
+    const sample=[...samples].reverse().find(x=>x.direction===direction&&x.speed===pwm&&x.elapsedMs>=1000&&x.cm>0);
+    return sample?"constexpr TravelSample Gan"+name+"{"+sample.elapsedMs+", "+(sample.cm/100).toFixed(3)+"f};":
+      "Gan"+name+" — потрібен вимір від 1 с";
+  };
+  byId("pairCalibration").textContent="constexpr uint8_t GanPwmPercent = "+pwm+";\n"+
+    exportSample(-1,"Left")+"\n"+exportSample(1,"Right");
 }
 async function request(path, data) {
   const controller = new AbortController();
@@ -167,7 +177,7 @@ for (const button of lightButtons) button.onclick = () =>
   action("/api/light-test", {output:button.dataset.light, stopEpoch:current.stopEpoch});
 byId("record").onclick = () => {
   const input = byId("distance");
-  if (!input.value || !input.reportValidity() || current?.phase !== "done" || !current.elapsedMs ||
+  if (!input.value || !input.reportValidity() || Number(input.value)<=0 || current?.phase !== "done" || !current.elapsedMs ||
       samples.some(sample => sample.id === current.id)) return;
   samples.push({id:current.id,direction:current.direction,speed:current.speed,elapsedMs:current.elapsedMs,cm:Number(input.value)});
   try { localStorage.setItem(storeKey, JSON.stringify(samples)); } catch (_) {}
@@ -175,6 +185,7 @@ byId("record").onclick = () => {
   showSamples();
   controls();
 };
+byId("speed").addEventListener("input",showSamples);
 showSamples();
 poll();
 setInterval(poll, 200);

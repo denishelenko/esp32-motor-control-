@@ -4,7 +4,7 @@
 namespace bk370 {
 enum class Direction : int8_t { Left = -1, Right = 1 };
 enum class Mode : uint8_t { Idle, Target, Program, Jog, Timed, Survey, Park };
-enum class Op : uint8_t { Stop, Speed, Target, Program, Servo, Jog, Timed, Zero, Reset, Start, Idle, Abort, MotorStop, LightTest, Survey, ClearReference, Park };
+enum class Op : uint8_t { Stop, Speed, Target, Program, Servo, Jog, Timed, Zero, Reset, Start, Idle, Abort, MotorStop, LightTest, Survey, ClearReference, Park, PwmLimit };
 enum class LightTest : uint8_t { Off, Red, Green, Strobe };
 struct Command {
   Op op = Op::Idle;
@@ -14,11 +14,25 @@ struct Command {
   float metres = 0;
 };
 
+inline float nextProgramTarget(uint8_t program, float position, float low, float high, Direction direction) {
+  const bool right = position <= low + 0.1f || (position < high - 0.1f && direction == Direction::Right);
+  if (program == 1) return position >= high - 0.1f ? low : high;
+  if (program == 2) {
+    const float rel = position - low;
+    const float steps = right ? floorf((rel + 0.05f) / 2) + 1 : ceilf((rel - 0.05f) / 2) - 1;
+    return constrain(low + 2.0f * steps, low, high);
+  }
+  const float distance = program == 3 ? random(10, 31) / 10.0f : random(40, 71) / 10.0f;
+  float step = random(2) ? distance : -distance;
+  if (position + step < low || position + step > high) step = -step;
+  return constrain(position + step, low, high);
+}
+
 class MotorGroup {
  public:
   int64_t count[2]{};
   float countsPerSecond[2]{};
-  uint8_t speed = uint8_t(DefaultSpeedKmh), program = 1;
+  uint8_t speed = uint8_t(DefaultSpeedKmh), program = 1, maxPwm = DefaultMaxPwmPercent;
   Mode mode = Mode::Idle;
   float position = 0, target = 0;
   int16_t applied[2]{};
@@ -48,7 +62,9 @@ class MotorGroup {
       countsPerMeter_[i] = measuredCounts > 0 ? measuredCounts :
           (cfg.wheelCircumferenceMm > 0 ? NominalCountsPerWheel * 1000.0 / cfg.wheelCircumferenceMm : 0);
       metersPerCount_[i] = countsPerMeter_[i] > 0 ? 1.0f / countsPerMeter_[i] : 0;
-      referenceCountsPerSecond_[i] = cfg.maxCountsPerSecond > 0 ? cfg.maxCountsPerSecond : NominalCountsPerSecond;
+      const double countsPerTurn = cfg.countsPerWheelTurn > 0 ? cfg.countsPerWheelTurn : NominalCountsPerWheel;
+      referenceCountsPerSecond_[i] = cfg.maxCountsPerSecond > 0 ? cfg.maxCountsPerSecond : NominalWheelRpm * countsPerTurn / 60.0;
+      wheelTurnMetres_[i] = countsPerTurn * metersPerCount_[i];
       log("MOTOR", "M%u reverseMotor=%d reverseEncoder=%d counts/m=%.1f", i + 1,
           cfg.reverseMotor, cfg.reverseEncoder, countsPerMeter_[i]);
       pinMode(cfg.pwmA, OUTPUT);
@@ -74,19 +90,22 @@ class MotorGroup {
       if (!encoderReady) latch(MotorFault::EncoderRead, i + 1);
       encodersReady &= encoderReady;
     }
-    maxSpeedMps_ = min(referenceCountsPerSecond_[0] * metersPerCount_[0],
-                       referenceCountsPerSecond_[1] * metersPerCount_[1]);
     hardwareReady_ = encodersReady && ready;
     log("MOTOR", "output=%d encoders=%d commissioned=%d", ready, encodersReady, DriveCommissioned);
   }
   bool calibrated() const {
     return countsPerMeter_[0] > 0 && countsPerMeter_[1] > 0;
   }
-  bool speedCalibrated() const {
-    return maxSpeedMps_ > 0;
-  }
+  bool speedCalibrated() const { return maxSpeedMps() > 0; }
   float maxSpeedMps() const {
-    return speedCalibrated() ? maxSpeedMps_ : 0;
+    return min(referenceCountsPerSecond_[0] * metersPerCount_[0] * pwmCeiling(0),
+               referenceCountsPerSecond_[1] * metersPerCount_[1] * pwmCeiling(1));
+  }
+  bool setPwmLimit(uint8_t percent) {
+    if (!percent || percent > 100) return false;
+    if (maxPwm != percent) log("PWM", "drive limit %u -> %u%%", maxPwm, percent);
+    maxPwm = percent;
+    return true;
   }
   float wheelMps(unsigned i) const { return countsPerSecond[i] * metersPerCount_[i]; }
   bool ready() const { return DriveCommissioned && hardwareReady_ && encodersReady && !faulted(); }
@@ -135,7 +154,9 @@ class MotorGroup {
   }
   bool moveFor(Direction direction, uint32_t ms, uint32_t now) {
     if (side_ || !ms || ms > 10000 || !validDirection(direction)) return false;
-    return start(Mode::Timed, direction, now, ms);
+    if (!start(Mode::Timed, direction, now, ms)) return false;
+    log("MOVE", "START %s timed %lu ms", directionName(), (unsigned long)ms);
+    return true;
   }
   bool moveDistanceM(Direction direction, float metres, uint32_t now) {
     if (!validDirection(direction) || !isfinite(metres) || metres <= 0) return false;
@@ -159,6 +180,7 @@ class MotorGroup {
     if (mode != Mode::Jog || direction_ != direction) {
       if (!start(Mode::Jog, direction, now, 650)) return false;
       target = direction == Direction::Right ? high_ : low_;
+      log("MOVE", "START %s jog from=%+.3f m", directionName(), position);
     }
     jogAt_ = now;
     return true;
@@ -167,8 +189,7 @@ class MotorGroup {
     return mode == Mode::Timed && now - started_ < duration_ ? duration_ - (now - started_) : 0;
   }
   void stop(uint32_t now, const char *reason) {
-    if (mode != Mode::Idle)
-      log("MOTOR", "end=%s elapsed=%lu ms position=%.3f m", reason, (unsigned long)(now - started_), position);
+    if (mode != Mode::Idle && !waiting_) logMoveEnd(now, reason);
     if (positionCommand() && !waiting_) {
       stoppedTarget_ = target;
       stoppedOrigin_ = segmentStartM_;
@@ -271,25 +292,32 @@ class MotorGroup {
     if (now - lastUpdate_ < 10) return;
     const float updateSeconds = min<uint32_t>(now - lastUpdate_, 50) / 1000.0f;
     lastUpdate_ = now;
-    float scale = min(1.0f, (elapsed + 10) / float(RampUpMs));
+    const float rampTime = min(1.0f, (elapsed + 10) / float(RampUpMs));
+    float scale = smoothRamp(rampTime);
     if (mode == Mode::Timed && RampDownMs) scale = min(scale, (duration_ - elapsed) / float(RampDownMs));
     const float rampM = segmentLength_ <= 2.0f ? segmentLength_ / 3.0f : SlowZoneM;
     const bool approaching = (positioning && remaining <= rampM) ||
         (side_ && centered && boundaryLeft <= SlowZoneM);
     if (positioning) {
       const float traveled = max(0.0f, segmentLength_ - remaining);
-      const float rampUp = constrain(traveled / rampM, 0.08f, 1.0f);
-      const float rampDown = constrain(remaining / rampM, ApproachMinScale, 1.0f);
+      const float rampUp = max(0.08f, smoothRamp(traveled / rampM));
+      const float rampDown = max(ApproachMinScale, smoothRamp(remaining / rampM));
       scale = min(scale, min(rampUp, rampDown));
     }
-    float limitMps = mode == Mode::Survey || mode == Mode::Park || (side_ && mode == Mode::Jog) ?
-        SharedSurveyMps : min(speed / 3.6f, maxSpeedMps());
-    if (side_ && centered) {
-      const float brakingLimit = sqrtf(2 * SharedBoundaryDecelMps2 * max(0.0f, boundaryLeft));
-      limitMps = min(limitMps, max(FinalCreepMps, brakingLimit));
+    const bool slowMode = mode == Mode::Survey || mode == Mode::Park || (side_ && mode == Mode::Jog);
+    float limitMps = min(slowMode ? SharedSurveyMps : speed / 3.6f, maxSpeedMps());
+    const bool nearBoundary = side_ && centered && boundaryLeft <= SlowZoneM;
+    const float boundarySpeed = max(FinalCreepMps, sqrtf(2 * SharedBoundaryDecelMps2 * max(0.0f, boundaryLeft)));
+    if (side_ && centered) limitMps = min(limitMps, boundarySpeed);
+    const float metresPerTurn = min(wheelTurnMetres_[0], wheelTurnMetres_[1]);
+    const float accelerationSpeed = (ApproachTurnsPerSecond + AccelTurnsPerSecondSquared * elapsed / 1000.0f) * metresPerTurn;
+    float targetMps = min(scale * limitMps, accelerationSpeed);
+    if (positioning) {
+      const float decelTurns = max(0.0f, remaining / metresPerTurn - ApproachTurns);
+      const float decelSpeed = sqrtf(ApproachTurnsPerSecond * ApproachTurnsPerSecond +
+                                    2 * DecelTurnsPerSecondSquared * decelTurns) * metresPerTurn;
+      targetMps = max(min(targetMps, decelSpeed), min(limitMps, FinalCreepMps));
     }
-    float targetMps = scale * limitMps;
-    if (positioning) targetMps = max(targetMps, min(limitMps, FinalCreepMps));
     if (creeping) targetMps = min(limitMps, FinalCreepMps);
     const float controlSeconds = speedSampleSeconds_;
     speedSampleSeconds_ = 0;
@@ -299,10 +327,8 @@ class MotorGroup {
       const float second = float(count[1] - segmentOrigin_[1]) * metersPerCount_[1];
       progressDifference = sign * (first - second);
     }
-    bool shouldBrake = false;
-    for (unsigned i = 0; i < 2; ++i)
-      shouldBrake |= sign * countsPerSecond[i] * metersPerCount_[i] > targetMps + ApproachBrakeMarginMps;
-    if (approaching && !creeping && shouldBrake) {
+    if (nearBoundary && !creeping &&
+        max(sign * wheelMps(0), sign * wheelMps(1)) > boundarySpeed + ApproachBrakeMarginMps) {
       for (unsigned i = 0; i < 2; ++i) { integral_[i] = 0; write(i, 0, now); }
       return;
     }
@@ -310,18 +336,26 @@ class MotorGroup {
       // Reduce output on the leading wheel without increasing the other wheel's duty.
       const float lead = i == 0 ? progressDifference : -progressDifference;
       const float correction = constrain(lead * 2.0f, 0.0f, 0.18f);
-      const auto &cfg = settings_[i];
-      const float allowedDuty = constrain(cfg.dutyMultiplier, 0.0f, 1.0f);
-      const float ceiling = creeping ? min(allowedDuty, FinalCreepDutyLimit) : allowedDuty;
-      const float maxCountsPerSecond = referenceCountsPerSecond_[i];
-      const float feedForward = targetMps * countsPerMeter_[i] / maxCountsPerSecond;
-      const float measured = sign * countsPerSecond[i] / maxCountsPerSecond;
-      const float error = feedForward - measured;
-      const float baseDuty = (StartingDuty + (1.0f - StartingDuty) * feedForward) * allowedDuty;
-      const float next = baseDuty + 0.55f * error + integral_[i];
-      if ((next > 0 && next < ceiling) || (next >= ceiling && error < 0) || (next <= 0 && error > 0))
-        integral_[i] = constrain(integral_[i] + 0.8f * error * controlSeconds, -0.5f, 0.5f);
-      const float duty = constrain(baseDuty + 0.55f * error + integral_[i], 0.0f, ceiling) * (1.0f - correction);
+      const float pwmLimit = pwmCeiling(i);
+      const float approachLimit = min(pwmLimit, CalibratedApproachPwmPercent[i] / 100.0f);
+      float ceiling = pwmLimit;
+      if (approaching) {
+        const float turnsRemaining = max(0.0f, remaining / wheelTurnMetres_[i] - ApproachTurns);
+        ceiling = approachLimit + (pwmLimit - approachLimit) * min(1.0f, turnsRemaining);
+      }
+      if (creeping) ceiling = approachLimit;
+      const float feedForward = targetMps * countsPerMeter_[i] / referenceCountsPerSecond_[i];
+      const float error = (targetMps - sign * wheelMps(i)) / wheelTurnMetres_[i];
+      const float baseDuty = feedForward + SpeedKp * error;
+      const float integralLimit = max(0.0f, ceiling - feedForward);
+      integral_[i] = constrain(integral_[i], 0.0f, integralLimit);
+      const float next = baseDuty + integral_[i];
+      if ((error > 0 && next < ceiling && correction == 0) || (error < 0 && next > 0))
+        integral_[i] = constrain(integral_[i] + SpeedKi * error * controlSeconds, 0.0f, integralLimit);
+      const float fade = 1.0f - min(elapsed, StartBoostMs) / float(StartBoostMs);
+      const float boost = CalibratedStartPwmPercent[i] / 100.0f * fade *
+                         constrain(error / ApproachTurnsPerSecond, 0.0f, 1.0f);
+      const float duty = constrain(max(baseDuty + integral_[i], boost), 0.0f, ceiling) * (1.0f - correction);
       const float slewCeiling = fabsf(applied[i]) / 1023.0f + DutyRisePerSec * updateSeconds;
       write(i, sign * int(min(duty, slewCeiling) * 1023.0f), now);
       if (faulted()) { stop(now, "motor PWM error"); return; }
@@ -332,6 +366,13 @@ class MotorGroup {
     }
   }
  private:
+  float pwmCeiling(unsigned i) const {
+    return min(constrain(settings_[i].dutyMultiplier, 0.0f, 1.0f), drivePwmFraction(maxPwm));
+  }
+  static float smoothRamp(float fraction) {
+    const float t = constrain(fraction, 0.0f, 1.0f);
+    return t * t * (3.0f - 2.0f * t);
+  }
   enum class FinalPhase : uint8_t { Drive, Brake, Creep };
   bool serviceFinalApproach(float remaining, uint32_t now) {
     if (finalPhase_ == FinalPhase::Drive && remaining > FinalBrakeM) return false;
@@ -379,9 +420,14 @@ class MotorGroup {
       return true;
     }
     saveStop(target, segmentStartM_, int8_t(direction_));
+    logMoveEnd(now, "segment complete");
     waiting_ = true;
     waitAt_ = now;
     return true;
+  }
+  const char *directionName() const { return direction_ == Direction::Right ? "RIGHT" : "LEFT"; }
+  void logMoveEnd(uint32_t now, const char *reason) {
+    log("MOVE", "END at=%+.3f m %lu ms (%s)", position, (unsigned long)(now - started_), reason);
   }
   bool positionCommand() const { return mode == Mode::Target || mode == Mode::Program || mode == Mode::Survey || mode == Mode::Park; }
   void saveStop(float commanded, float origin, int8_t direction) {
@@ -397,7 +443,7 @@ class MotorGroup {
   }
   bool start(Mode modeWanted, Direction direction, uint32_t now, uint32_t duration = 0) {
     if (!ready() || !permitted_ || !speed ||
-        (!speedCalibrated() && modeWanted != Mode::Timed)) return false;
+        !speedCalibrated()) return false;
     if (mode != Mode::Idle && !waiting_) stop(now, "replaced");
     stopPending_ = false;
     mode = modeWanted;
@@ -410,7 +456,6 @@ class MotorGroup {
       segmentOrigin_[i] = count[i];
       integral_[i] = 0;
     }
-    log("MOTOR", "start mode=%u dir=%d speed limit=%u km/h duration=%lu ms", unsigned(mode), int(direction), speed, (unsigned long)duration);
     return true;
   }
   bool beginTarget(float metres, Mode m, uint32_t now) {
@@ -424,21 +469,11 @@ class MotorGroup {
     segmentStartM_ = position;
     segmentLength_ = fabsf(metres - position);
     target = metres;
+    log("MOVE", "START %s from=%+.3f m target=%+.3f m distance=%.3f m",
+        directionName(), segmentStartM_, target, segmentLength_);
     return true;
   }
-  float nextTarget() const {
-    const bool right = position <= low_ + 0.1f || (position < high_ - 0.1f && direction_ == Direction::Right);
-    if (program == 1) return position >= high_ - 0.1f ? low_ : high_;
-    if (program == 2) {
-      const float rel = position - low_;
-      const float steps = right ? floorf((rel + 0.05f) / 2) + 1 : ceilf((rel - 0.05f) / 2) - 1;
-      return constrain(low_ + 2.0f * steps, low_, high_);
-    }
-    const float distance = program == 3 ? random(10, 31) / 10.0f : random(40, 71) / 10.0f;
-    float step = random(2) ? distance : -distance;
-    if (position + step < low_ || position + step > high_) step = -step;
-    return constrain(position + step, low_, high_);
-  }
+  float nextTarget() const { return nextProgramTarget(program, position, low_, high_, direction_); }
   void write(unsigned i, int val, uint32_t now) {
     if (!pwmReady_[i] || val == applied[i]) return;
     const auto &cfg = settings_[i];
@@ -472,7 +507,7 @@ class MotorGroup {
   float low_ = -LimitM, high_ = LimitM, referenceM_ = 0;
   float segmentStartM_ = 0, segmentLength_ = 0, speedSampleSeconds_ = 0;
   const MotorSettings *settings_ = Motors;
-  float countsPerMeter_[2]{}, metersPerCount_[2]{}, referenceCountsPerSecond_[2]{}, maxSpeedMps_ = 0;
+  float countsPerMeter_[2]{}, metersPerCount_[2]{}, referenceCountsPerSecond_[2]{}, wheelTurnMetres_[2]{};
   Encoder encoder_[2];
   MotorFeedbackCheck feedback_[2];
   int64_t origin_[2]{}, segmentOrigin_[2]{};
@@ -488,19 +523,23 @@ class MotorGroup {
 };
 
 struct Status {
+#ifdef BK_MIXED_GAN
+  float estimatedTravelLimit = 0;
+#endif
   float position = 0, target = 0, fromReference = 0, wheelPosition[2]{};
   int32_t count[2]{};
   int16_t pwm[2]{};
   float countsPerSecond[2]{}, wheelMps[2]{}, maxMps = 0;
   uint16_t mv = 0;
   float amps = 0;
+  InaPeaks inaPeaks;
   bool currentValid = false, hasIna226 = false;
   uint32_t remainingMs = 0;
   Mode mode = Mode::Idle;
   LightTest lightTest = LightTest::Off;
   uint8_t speed = uint8_t(DefaultSpeedKmh), program = 1, servoTarget = 0, servoSelected = 45;
   MotorFault fault = MotorFault::None;
-  uint8_t faultMotor = 0;
+  uint8_t faultMotor = 0, maxPwm = DefaultMaxPwmPercent;
   bool ready = false, powered = false, locked = false, centered = false, calibrated = false, servo = false, surveyed = false, atOuterMark = false, parked = false;
 };
 
@@ -540,6 +579,7 @@ class Carriage {
       if constexpr (UseIna226) return battery.reset(now);
       return false;
     }
+    if (cmd.op == Op::PwmLimit) return motors.setPwmLimit(cmd.value);
     if (cmd.op == Op::Speed) { motors.setSpeed(cmd.speed); return true; }
     if (cmd.op == Op::Servo && cmd.value == 0) {
       if (powerAllowed(now)) servo.close(now);
@@ -575,6 +615,7 @@ class Carriage {
     const bool permit = linkOk && powerAllowed(now);
     if (!permit) servo.off();
     motors.tick(now, permit);
+    if constexpr (UseIna226) battery.motorPwm(now, motors.applied[0] || motors.applied[1]);
     if (motors.faulted()) servo.off();
     servo.tick(now);
     const bool operational = permit && !motors.faulted();
@@ -603,11 +644,13 @@ class Carriage {
       s.wheelMps[i] = motors.wheelMps(i);
     }
     s.maxMps = motors.maxSpeedMps();
+    s.maxPwm = motors.maxPwm;
     s.lightTest = test_;
     s.hasIna226 = UseIna226;
     if constexpr (UseIna226) {
       s.mv = battery.valid ? battery.millivolts : 0;
       s.amps = battery.amps;
+      s.inaPeaks = battery.peaks;
       s.currentValid = battery.currentValid;
       s.locked = battery.locked;
     }
@@ -643,7 +686,6 @@ class Carriage {
     if (old == on) return;
     old = on;
     digitalWrite(pin, on);
-    log(pin == RedPin ? "LED_R" : pin == GreenPin ? "LED_G" : "STROBE", "%s", on ? "on" : "off");
   }
   MotorGroup motors;
   BatteryMonitor battery;

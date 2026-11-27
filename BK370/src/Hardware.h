@@ -2,21 +2,9 @@
 #include <Arduino.h>
 #include <driver/pulse_cnt.h>
 #include "Settings.h"
+#include "EventLog.h"
 
 namespace bk370 {
-inline void log(const char *event, const char *format = "", ...) {
-  char line[112];
-  int n = snprintf(line, sizeof(line), "[%010lu] %s ", (unsigned long)millis(), event);
-  if (n < 0 || n >= int(sizeof(line) - 2)) return;
-  va_list args;
-  va_start(args, format);
-  vsnprintf(line + n, sizeof(line) - n - 1, format, args);
-  va_end(args);
-  size_t size = strlen(line);
-  line[size++] = '\n';
-  if (Serial.availableForWrite() >= int(size)) Serial.write((const uint8_t *)line, size);
-}
-
 enum class MotorFault : uint8_t { None, EncoderRead, PwmOutput, NoFeedback, Reversed, WheelMismatch, TrackOverrun };
 
 inline const char *motorFaultMessage(MotorFault fault) {
@@ -105,11 +93,11 @@ class ServoOutput {
   bool enabled = false;
   void begin() { pinMode(ServoPin, OUTPUT); digitalWrite(ServoPin, LOW); }
   void off() {
+    finishTravel(millis(), "PWM disabled");
     if (attached_) {
       ledcDetach(ServoPin);
       pinMode(ServoPin, OUTPUT);
       digitalWrite(ServoPin, LOW);
-      log("SERVO", "PWM disabled");
     }
     enabled = attached_ = cycling_ = false;
     travelMs_ = 0;
@@ -125,7 +113,6 @@ class ServoOutput {
     cycling_ = false;
     holdMs_ = durationMs;
     changedAt_ = now;
-    log("SERVO", "command=%u deg hold=%lu ms", degrees, (unsigned long)durationMs);
     return true;
   }
   bool cycle(uint8_t degrees, uint32_t now) {
@@ -134,11 +121,10 @@ class ServoOutput {
     selected = degrees;
     cycling_ = true;
     changedAt_ = now;
-    log("SERVO", "cycle=%u deg", degrees);
     return true;
   }
   void tick(uint32_t now) {
-    if (travelMs_ && now - travelAt_ >= travelMs_) travelMs_ = 0;
+    if (travelMs_ && now - travelAt_ >= travelMs_) finishTravel(now, "");
     if (!enabled) return;
     if (!cycling_) {
       if (holdMs_ && now - changedAt_ >= holdMs_) off();
@@ -148,10 +134,18 @@ class ServoOutput {
       const auto next = angle ? 0 : selected;
       if (!write(next, now)) { off(); return; }
       changedAt_ = now;
-      log("SERVO", "target=%u deg next=2500 ms", angle);
     }
   }
  private:
+  void finishTravel(uint32_t now, const char *interruption) {
+    if (!travelMs_) return;
+    if (now - travelAt_ >= travelMs_)
+      log("SERVO", "END %u deg, estimated travel time elapsed", angle);
+    else
+      log("SERVO", "END interrupted, target=%u deg (%s)", angle, interruption);
+    travelMs_ = 0;
+  }
+
   bool write(uint8_t degrees, uint32_t now) {
     if (degrees > 180) return false;
     constexpr uint32_t Hz = 333;
@@ -160,6 +154,8 @@ class ServoOutput {
     const uint32_t us = 520 + (2000 * uint32_t(degrees)) / 180;
     if (!ledcWrite(ServoPin, (uint64_t(us) * Hz * 16384 + 500000) / 1000000)) return false;
     if (angle != degrees) {
+      finishTravel(now, "new command");
+      log("SERVO", "START %s %u -> %u deg", degrees ? "open" : "close", angle, degrees);
       travelAt_ = now;
       travelMs_ = (abs(int(degrees) - int(angle)) * ServoTravel90Ms + 89) / 90;
     }

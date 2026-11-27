@@ -18,6 +18,7 @@ h1{margin-top:0;font-size:1.5rem}p{line-height:1.5}.buttons{display:grid;grid-te
 button{min-height:48px;border:1px solid #829081;border-radius:11px;background:#222a24;color:inherit;font:inherit;font-weight:700}
 button:disabled{opacity:.45}#stop{width:100%;margin-top:12px;background:#78382e}
 .settings{display:grid;gap:10px;margin:16px 0}.settings label{display:flex;align-items:center;justify-content:space-between;gap:8px}
+[hidden]{display:none!important}
 .settings input[type=range]{flex:1;min-width:60px;accent-color:#b0c6ad}
 .settings input[type=number],.settings select{width:100px;padding:8px;border:1px solid #829081;border-radius:8px;background:#222a24;color:inherit;font:inherit}
 table{width:100%;border-collapse:collapse;text-align:right}th,td{padding:7px 3px;border-bottom:1px solid #5e6a61}
@@ -35,22 +36,13 @@ th:first-child{text-align:left}small{color:#d1dacd}
 <p>Закріпи каретку, підніми колеса й познач початок оберту.</p>
 <div class="settings">
  <label>Мотор <select id="motors"><option value="1">M1</option><option value="2">M2</option><option value="3">Обидва</option></select></label>
- <label>Потрібно обертів <input id="turns" type="number" min="1" max="1000000" step="1" value="1" required></label>
- <label>Швидкість <input id="speed" type="range" min="0" max="100" value="20"><output id="speedValue" for="speed">20%</output></label>
+ <label>Задати хід у <select id="units"><option value="turns">Обертах</option><option value="metres">Метрах</option></select></label>
+ <label id="turnsField">Кількість обертів <input id="turns" type="number" min="1" max="1000000" step="1" value="1" required></label>
+ <label id="metresField" hidden>Відстань, м <input id="metres" type="number" min="0.01" max="100000" step="0.01" value="1" required disabled></label>
+ <label>Ліміт ШІМ <input id="speed" type="range" min="0" max="100" value="__MAX_PWM__"><output id="speedValue" for="speed">__MAX_PWM__%</output></label>
  <label>Плавність <input id="smooth" type="checkbox" checked></label>
+ <label>Балансувати оберти M1 і M2 <input id="balance" type="checkbox" disabled></label>
 </div>
-<details id="settings"><summary>Калібрування M1 і M2</summary>
-<div class="settings">
- <label>Гальмувати M1 раніше, тіків <input id="brakeM1" type="number" min="0" max="2147483647" step="1" value="__BRAKE_M1__" required></label>
- <label>Гальмувати M2 раніше, тіків <input id="brakeM2" type="number" min="0" max="2147483647" step="1" value="__BRAKE_M2__" required></label>
- <label>M1 · тіків за повний оберт <input id="ticksM1" type="number" min="1" max="1000000" step="any" value="__TICKS_M1__" required></label>
- <label>M2 · тіків за повний оберт <input id="ticksM2" type="number" min="1" max="1000000" step="any" value="__TICKS_M2__" required></label>
- <label>M1 · ШІМ на підході, % <input id="approachM1" type="number" min="5" max="100" step="1" value="__APPROACH_M1__" required></label>
- <label>M2 · ШІМ на підході, % <input id="approachM2" type="number" min="5" max="100" step="1" value="__APPROACH_M2__" required></label>
- <label>Відстань замість обертів, м <input id="metres" type="number" min="0.01" max="100000" step="0.01"></label>
-</div>
-<p><small>ШІМ на підході діє з увімкненою плавністю. Для першого заміру залиш випередження 0.</small></p>
-</details>
 <div class="buttons"><button data-direction="left" disabled>← Вліво</button><button data-direction="right" disabled>Вправо →</button></div>
 <button id="stop">СТОП</button>
 <p id="status" role="status">Підключення до ESP32…</p>
@@ -59,18 +51,30 @@ th:first-child{text-align:left}small{color:#d1dacd}
 <div id="driveFault" class="driveFault" role="alert" hidden></div>
 <table><thead><tr><th scope="col">Параметр</th><th scope="col">M1</th><th scope="col">M2</th></tr></thead>
 <tbody><tr><th scope="row">Фактично обертів за енкодером</th><td id="actualTurns0">—</td><td id="actualTurns1">—</td></tr>
-<tr><th scope="row">Поточна швидкість, об/хв</th><td id="rpm0">—</td><td id="rpm1">—</td></tr>
-<tr><th scope="row">Макс. швидкість за хід, об/хв</th><td id="peakRpm0">—</td><td id="peakRpm1">—</td></tr>
-<tr><th scope="row">Рекомендоване випередження, тіків</th><td id="nextBrake0">—</td><td id="nextBrake1">—</td></tr>
+<tr id="distanceResult" hidden><th scope="row">Пройдено за енкодером, м</th><td id="actualMetres0">—</td><td id="actualMetres1">—</td></tr>
+<tr><th scope="row">Поточна швидкість, км/год</th><td id="kmh0">—</td><td id="kmh1">—</td></tr>
+<tr><th scope="row">Макс. швидкість за хід, км/год</th><td id="peakKmh0">—</td><td id="peakKmh1">—</td></tr>
 <tr><th scope="row">Кінцева похибка, тіків (+ переліт, − недохід)</th><td id="error0">—</td><td id="error1">—</td></tr>
 </tbody></table>
+<details id="settings"><summary>Калібрування M1 і M2</summary>
+<div class="settings">
+ <label>M1 · стартовий ШІМ, % <input id="startM1" type="number" min="5" max="100" step="1" value="__START_M1__" required></label>
+ <label>M1 · ліміт ШІМ у кінці, % <input id="approachM1" type="number" min="5" max="100" step="1" value="__APPROACH_M1__" required></label>
+ <label>M2 · стартовий ШІМ, % <input id="startM2" type="number" min="5" max="100" step="1" value="__START_M2__" required></label>
+ <label>M2 · ліміт ШІМ у кінці, % <input id="approachM2" type="number" min="5" max="100" step="1" value="__APPROACH_M2__" required></label>
+ <label>M1 · тіків за повний оберт <input id="ticksM1" type="number" min="1" max="1000000" step="any" value="__TICKS_M1__" required></label>
+ <label>M2 · тіків за повний оберт <input id="ticksM2" type="number" min="1" max="1000000" step="any" value="__TICKS_M2__" required></label>
+</div>
+<p><small>Стартовий і кінцевий ШІМ діють із «Плавністю» та підпорядковуються загальному ліміту ШІМ.</small></p>
+</details>
 <details><summary>Відліки енкодера</summary>
 <table aria-label="Відліки енкодера"><thead><tr><th scope="col">Параметр</th><th scope="col">M1</th><th scope="col">M2</th></tr></thead>
 <tbody><tr><th scope="row">Поточні відліки</th><td id="count0">—</td><td id="count1">—</td></tr>
 <tr><th scope="row">Ціль на хід</th><td id="goal0">—</td><td id="goal1">—</td></tr>
-<tr><th scope="row">Застосоване випередження, тіків</th><td id="advance0">—</td><td id="advance1">—</td></tr>
-<tr><th scope="row">Плановий відлік гальма</th><td id="brakeTarget0">—</td><td id="brakeTarget1">—</td></tr>
+<tr><th scope="row">Поточні об/хв</th><td id="rpm0">—</td><td id="rpm1">—</td></tr>
+<tr><th scope="row">Фактичний ШІМ, %</th><td id="pwm0">—</td><td id="pwm1">—</td></tr>
 <tr><th scope="row">Фактичний відлік гальма</th><td id="brakeCount0">—</td><td id="brakeCount1">—</td></tr>
+<tr><th scope="row">Швидкість перед гальмом, об/хв</th><td id="brakeRpm0">—</td><td id="brakeRpm1">—</td></tr>
 <tr><th scope="row">Пройдено від старту, відл.</th><td id="offset0">—</td><td id="offset1">—</td></tr>
 <tr><th scope="row">Фактичний хід по колесу, см</th><td id="travelCm0">—</td><td id="travelCm1">—</td></tr>
 <tr><th scope="row">Хід після команди гальма, тіків</th><td id="brakeTravel0">—</td><td id="brakeTravel1">—</td></tr></tbody></table>
@@ -87,8 +91,13 @@ function setConnected(value){
 const format=(value,digits)=>Number.isFinite(value)?value.toFixed(digits):"—";
 function updateButtons(){
  const selected=+el("motors").value;
+ el("balance").disabled=selected!==3||busy||active;
  buttons.forEach(button=>button.disabled=!connected||busy||active||+el("speed").value===0||(readyMotors&selected)!==selected);
- el("turns").disabled=el("metres").value!=="";
+}
+function updateUnits(){
+ const distance=el("units").value==="metres";
+ el("turnsField").hidden=el("turns").disabled=distance;
+ el("metresField").hidden=el("metres").disabled=!distance;
 }
 async function poll(){
  const requestedToken=token,controller=new AbortController();
@@ -105,6 +114,7 @@ async function poll(){
   el("driveFault").hidden=!faults.length;
   const target=state.requestedMetres?state.requestedMetres+" м":state.requestedTurns?state.requestedTurns+" обертів":"";
   el("accepted").textContent=target?"Задано "+target+" · "+(state.direction>0?"вправо":"вліво"):"";
+  el("distanceResult").hidden=!state.requestedMetres;
   el("warning").textContent=state.directionWarning||"";
   if(token===requestedToken){
    active=state.active;
@@ -112,13 +122,17 @@ async function poll(){
    if(!state.active)token=0;
    if(!busy)el("status").textContent=state.message;
   }
-  for(const key of ["count","goal","offset","error","brakeTravel","nextBrake","advance","brakeTarget","brakeCount"])
+  for(const key of ["count","goal","offset","error","brakeTravel","brakeCount"])
    for(let i=0;i<2;i++)el(key+i).textContent=state[key]?.[i]??"—";
   for(let i=0;i<2;i++){
-   const ticks=state.ticksPerTurn?.[i], offset=state.offset?.[i], rpm=state.rpm?.[i];
+   const ticks=state.ticksPerTurn?.[i], offset=state.offset?.[i], travel=state.travelCm?.[i];
    el("actualTurns"+i).textContent=format(ticks>0&&Number.isFinite(offset)?offset/ticks:NaN,3);
-   el("rpm"+i).textContent=format(Math.abs(rpm??NaN),1);
-   el("peakRpm"+i).textContent=format(state.peakRpm?.[i],1);
+   el("actualMetres"+i).textContent=format(Number.isFinite(travel)?travel/100:NaN,3);
+   el("kmh"+i).textContent=format(state.kmh?.[i],2);
+   el("peakKmh"+i).textContent=format(state.peakKmh?.[i],2);
+   el("rpm"+i).textContent=format(Math.abs(state.rpm?.[i]??NaN),1);
+   el("pwm"+i).textContent=format(state.pwm?.[i],1);
+   el("brakeRpm"+i).textContent=format(state.brakeRpm?.[i],1);
    el("travelCm"+i).textContent=format(state.travelCm?.[i],2);
   }
  }catch{}
@@ -127,7 +141,7 @@ async function poll(){
  setTimeout(poll,150);
 }
 buttons.forEach(button=>button.onclick=async()=>{
- const fields=["turns","speed","motors","brakeM1","brakeM2","ticksM1","ticksM2","approachM1","approachM2","metres"];
+ const fields=[el("units").value,"speed","motors","startM1","startM2","ticksM1","ticksM2","approachM1","approachM2"];
  const invalid=fields.map(el).find(field=>!field.validity.valid);
  if(invalid){
   if(invalid.closest("details"))el("settings").open=true;
@@ -137,6 +151,7 @@ buttons.forEach(button=>button.onclick=async()=>{
  const params=new URLSearchParams(fields.map(key=>[key,el(key).value]));
  params.set("direction",button.dataset.direction);
  params.set("smooth",el("smooth").checked?"1":"0");
+ params.set("balance",el("motors").value==="3"&&el("balance").checked?"1":"0");
  busy=true;updateButtons();
  try{
   const response=await fetch("/start?"+params,{method:"POST"});
@@ -147,7 +162,7 @@ buttons.forEach(button=>button.onclick=async()=>{
  finally{busy=false;updateButtons()}
 });
 el("motors").onchange=updateButtons;
-el("metres").oninput=updateButtons;
+el("units").onchange=updateUnits;
 function updateSpeed(){
  const speed=+el("speed").value;
  const pwm=speed===0?0:5+95*(speed-1)/99;
@@ -161,6 +176,7 @@ setInterval(()=>{
  if(connected&&performance.now()-lastStateAt>=500){setConnected(false);updateButtons()}
 },100);
 updateSpeed();
+updateUnits();
 poll();
 </script></html>
 )HTML";
@@ -170,23 +186,18 @@ class MotorCalibration {
   static constexpr int MaxSpeedPercent = 100, MaxTurns = 1000000;
   static constexpr uint32_t MinRunTimeoutMs = 20000, TimeoutPerTurnMs = 10000;
   static constexpr uint32_t QuietMs = 200;
-  static constexpr uint32_t SampleMs = 100;
+  static constexpr uint32_t SampleMs = 20;
   static constexpr uint32_t WifiReportMs = 10000;
-  static constexpr int MinDrivePercent = 5;
-  static constexpr int ApproachPwmPercent[2] = {15, 15};
-  // Encoder counts before the final target at which each motor starts braking.
-  // Increase to brake earlier. Set to zero to brake at the target count.
-  static constexpr int32_t M1BrakeAdvanceTicks = 0;
-  static constexpr int32_t M2BrakeAdvanceTicks = 0;
-  static_assert(M1BrakeAdvanceTicks >= 0 && M2BrakeAdvanceTicks >= 0,
-                "Brake advance must be nonnegative");
-  static constexpr int32_t BrakeAdvanceTicks[2] = {M1BrakeAdvanceTicks, M2BrakeAdvanceTicks};
+  static constexpr float BalanceDeadbandRpm = 10.0f;
+  static constexpr float BalanceMaxTrim = 0.5f;
+  static constexpr float BalanceMaxRate = 0.30f;
 
  public:
   explicit MotorCalibration(bool carriage2 = false) : settings_(motorSettingsFor(carriage2)) {}
 
   void begin(const char *homeSsid = nullptr, const char *homePassword = nullptr) {
-    Serial.begin(115200);
+    eventLog.begin(1);
+    log("BOOT", "motor calibration, serial 115200");
     homeWifi_ = homeSsid != nullptr;
     homeSsidConfigured_ = homeWifi_ && *homeSsid;
     log("BOOT", "%s", homeWifi_ ? "motor_calibration_home (STA)" : "motor_calibration (AP)");
@@ -225,12 +236,13 @@ class MotorCalibration {
     }
     server_.on("/", HTTP_GET, [this] {
       String html(MotorCalibrationHtml);
-      html.replace("__BRAKE_M1__", String(BrakeAdvanceTicks[0]));
-      html.replace("__BRAKE_M2__", String(BrakeAdvanceTicks[1]));
+      html.replace("__MAX_PWM__", String(DefaultMaxPwmPercent));
+      html.replace("__START_M1__", String(CalibratedStartPwmPercent[0]));
+      html.replace("__START_M2__", String(CalibratedStartPwmPercent[1]));
       html.replace("__TICKS_M1__", String(defaultCountsPerTurn(0), 12));
       html.replace("__TICKS_M2__", String(defaultCountsPerTurn(1), 12));
-      html.replace("__APPROACH_M1__", String(ApproachPwmPercent[0]));
-      html.replace("__APPROACH_M2__", String(ApproachPwmPercent[1]));
+      html.replace("__APPROACH_M1__", String(CalibratedApproachPwmPercent[0]));
+      html.replace("__APPROACH_M2__", String(CalibratedApproachPwmPercent[1]));
       server_.sendHeader("Cache-Control", "no-store");
       server_.send(200, "text/html; charset=utf-8", html);
     });
@@ -351,7 +363,28 @@ class MotorCalibration {
       sampleCount_[i] = count_[i];
       if (active() && selected(i) && !braking_[i]) peakRpm_[i] = max(peakRpm_[i], fabsf(rpm_[i]));
     }
+    if (active() && balance_) updateBalance(elapsed);
     sampleAt_ = now;
+  }
+  void updateBalance(uint32_t elapsed) {
+    const float maxStep = BalanceMaxRate * min(elapsed, uint32_t(100)) / 1000.0f;
+    if (braking_[0] || braking_[1]) {
+      balanceTrim_ -= constrain(balanceTrim_, -maxStep, maxStep);
+      return;
+    }
+    for (unsigned i = 0; i < 2; ++i) balanceRpm_[i] += 0.25f * (fabsf(rpm_[i]) - balanceRpm_[i]);
+    if (min(balanceRpm_[0], balanceRpm_[1]) < 15.0f) return;
+    const float difference = balanceRpm_[0] - balanceRpm_[1];
+    const float error = difference - constrain(difference, -BalanceDeadbandRpm, BalanceDeadbandRpm);
+    const float step = constrain(0.004f * error * min(elapsed, uint32_t(100)) / 1000.0f, -maxStep, maxStep);
+    balanceTrim_ = constrain(balanceTrim_ + step, -BalanceMaxTrim, BalanceMaxTrim);
+  }
+  float balanceTrimFor(unsigned i) const {
+    return max(0.0f, i == 0 ? balanceTrim_ : -balanceTrim_);
+  }
+  void driveWheel(unsigned i, int duty) {
+    const int balancedDuty = lroundf(duty * (1.0f - balanceTrimFor(i)));
+    write(i, direction_ * balancedDuty);
   }
   void setPinsLow(unsigned i) {
     for (uint8_t pin : {settings_[i].pwmA, settings_[i].pwmB}) {
@@ -404,8 +437,9 @@ class MotorCalibration {
     runStartedUs_ = esp_timer_get_time();
     const uint64_t estimatedTurns = metres > 0 ? uint64_t(ceil(metres * 1000 / WheelCircumferenceMm)) : uint64_t(turns);
     runTimeoutMs_ = max(uint64_t(MinRunTimeoutMs), estimatedTurns * TimeoutPerTurnMs);
-    const double pwm = (MinDrivePercent + (100.0 - MinDrivePercent) * (speed - 1) / (MaxSpeedPercent - 1)) / 100.0;
+    const double pwm = drivePwmFraction(speed);
     sampleAt_ = now;
+    balanceTrim_ = 0;
     for (unsigned i = 0; i < 2; ++i) {
       start_[i] = sampleCount_[i] = count_[i];
       changedAt_[i] = now;
@@ -415,6 +449,9 @@ class MotorCalibration {
       brakeProgress_[i] = 0;
       directionWarning_[i] = false;
       peakRpm_[i] = secondsPerTurn_[i] = 0;
+      rpm_[i] = speedIntegral_[i] = 0;
+      balanceRpm_[i] = 0;
+      speedControlAt_[i] = now;
       goal_[i] = goals[i];
       maxDuty_[i] = lround(1023 * min(pwm, double(constrain(settings_[i].dutyMultiplier, 0.0f, 1.0f))));
       if (selected(i) && !metres) hasDistanceTarget_[i] = false;
@@ -436,15 +473,44 @@ class MotorCalibration {
     }
     return true;
   }
-  int64_t brakeAdvance(unsigned i) const {
-    return min(goal_[i] - 1, int64_t(runBrakeTicks_[i]));
+  void regulateSpeed(unsigned i, int64_t ticksToBrake) {
+    const uint32_t elapsed = sampleAt_ - speedControlAt_[i];
+    if (elapsed == 0) return;
+    speedControlAt_[i] = sampleAt_;
+    const float turnsToBrake = ticksToBrake / countsPerTurn(i);
+    const float decelTurns = max(0.0f, turnsToBrake - ApproachTurns);
+    const float nominalSpeed = NominalWheelRpm / 60.0f;
+    const float pwmLimit = maxDuty_[i] / 1023.0f;
+    const float approachLimit = min(pwmLimit, runApproachDuty_[i] / 1023.0f);
+    const float dutyLimit = approachLimit + (pwmLimit - approachLimit) * min(1.0f, decelTurns);
+    const float decelSpeed = sqrtf(ApproachTurnsPerSecond * ApproachTurnsPerSecond +
+                                  2 * DecelTurnsPerSecondSquared * decelTurns);
+    const uint64_t runMs = elapsedMs();
+    const float rampSpeed = ApproachTurnsPerSecond +
+                           AccelTurnsPerSecondSquared * runMs / 1000.0f;
+    const float target = min(min(rampSpeed, decelSpeed), nominalSpeed * pwmLimit);
+    const float error = target - fabsf(rpm_[i]) / 60.0f;
+    const float feedForward = target / nominalSpeed;
+    const float base = feedForward + SpeedKp * error;
+    const float integralLimit = max(0.0f, dutyLimit - feedForward);
+    speedIntegral_[i] = constrain(speedIntegral_[i], 0.0f, integralLimit);
+    const float command = base + speedIntegral_[i];
+    if ((error > 0 && command < dutyLimit && balanceTrimFor(i) == 0) || (error < 0 && command > 0)) {
+      speedIntegral_[i] = constrain(speedIntegral_[i] + SpeedKi * error * min(elapsed, uint32_t(100)) / 1000.0f,
+                                    0.0f, integralLimit);
+    }
+    const uint64_t boostElapsed = runMs - min(runMs, uint64_t(SampleMs));
+    const float boostFade = 1.0f - min(boostElapsed, uint64_t(StartBoostMs)) / float(StartBoostMs);
+    const float startingDuty = runStartDuty_[i] / 1023.0f * boostFade *
+                               constrain(error / ApproachTurnsPerSecond, 0.0f, 1.0f);
+    const float duty = constrain(max(base + speedIntegral_[i], startingDuty), 0.0f, dutyLimit);
+    driveWheel(i, lroundf(1023 * duty));
   }
   bool serviceWheel(unsigned i, int64_t progress, uint32_t now) {
     const int64_t remaining = goal_[i] - progress;
-    const int64_t advance = brakeAdvance(i);
     if (braking_[i])
       return settleWheel(i, progress, now);
-    if (remaining <= advance) {
+    if (remaining <= 0) {
       braking_[i] = true;
       brakeAt_[i] = now;
       brakeProgress_[i] = progress;
@@ -452,7 +518,6 @@ class MotorCalibration {
       encoderDirection_[i] = count_[i] < start_[i] ? -1 : 1;
       write(i, 0);
       log("BRAKE", "M%u LOW/LOW counts=%lld/%lld", i + 1, (long long)progress, (long long)goal_[i]);
-      log("BRAKE", "M%u advance=%lld ticks", i + 1, (long long)advance);
       return false;
     }
     int64_t feedbackProgress;
@@ -463,14 +528,10 @@ class MotorCalibration {
     }
     const int ceiling = maxDuty_[i];
     if (!smooth_) {
-      write(i, direction_ * ceiling);
+      driveWheel(i, ceiling);
       return false;
     }
-    const double approachFraction = min(1.0, (remaining - advance) / (0.5 * countsPerTurn(i)));
-    const int approach = max(min(runApproachDuty_[i], ceiling), int(ceiling * approachFraction));
-    const int startDuty = min(ceiling, (1023 * MinDrivePercent + 50) / 100);
-    const int ramp = startDuty + int(min(elapsedMs(), uint64_t(700)) * (ceiling - startDuty) / 700);
-    write(i, direction_ * min(approach, ramp));
+    regulateSpeed(i, remaining);
     return false;
   }
   void serviceMove(uint32_t now) {
@@ -522,20 +583,22 @@ class MotorCalibration {
     const double metres = metresArgument.isEmpty() ? 0 : strtod(metresArgument.c_str(), &metresEnd);
     const int speed = boundedValue("speed", MaxSpeedPercent);
     const uint8_t motors = boundedValue("motors", 3);
-    const int32_t brakeM1 = brakeTicksArgument("brakeM1");
-    const int32_t brakeM2 = brakeTicksArgument("brakeM2");
     const double ticksPerTurn[2] = {ticksPerTurnArgument("ticksM1"), ticksPerTurnArgument("ticksM2")};
+    const int startPercent[2] = {boundedValue("startM1", 100), boundedValue("startM2", 100)};
     const int approachPercent[2] = {boundedValue("approachM1", 100), boundedValue("approachM2", 100)};
     const String smooth = server_.arg("smooth");
+    const String balance = server_.arg("balance");
     const String direction = server_.arg("direction");
     const uint32_t now = millis();
     JsonDocument d;
     const bool validDistance = metresArgument.isEmpty() ||
       (metresEnd && !*metresEnd && isfinite(metres) && metres >= 0.01 && metres <= 100000);
-    if (!validDistance || (!metres && !turns) || !speed || !motors || brakeM1 < 0 || brakeM2 < 0 ||
+    if (!validDistance || (!metres && !turns) || !speed || !motors ||
+        startPercent[0] < MinDrivePercent || startPercent[1] < MinDrivePercent ||
         !ticksPerTurn[0] || !ticksPerTurn[1] || approachPercent[0] < MinDrivePercent || approachPercent[1] < MinDrivePercent ||
-        (smooth != "0" && smooth != "1") || (direction != "right" && direction != "left")) {
-      d["message"] = "Перевір відстань або оберти, мотор, ШІМ, тіки за оберт і випередження гальма";
+        (smooth != "0" && smooth != "1") || (balance != "0" && balance != "1") ||
+        (balance == "1" && motors != 3) || (direction != "right" && direction != "left")) {
+      d["message"] = "Перевір відстань або оберти, мотор, ШІМ та тіки за оберт";
       sendJson(400, d);
       return;
     }
@@ -567,11 +630,11 @@ class MotorCalibration {
       if (!selected(i)) continue;
       if (countsPerTurn(i) != ticksPerTurn[i]) hasDistanceTarget_[i] = false;
       runCountsPerTurn_[i] = ticksPerTurn[i];
+      runStartDuty_[i] = (1023 * startPercent[i] + 50) / 100;
       runApproachDuty_[i] = (1023 * approachPercent[i] + 50) / 100;
     }
-    runBrakeTicks_[0] = brakeM1;
-    runBrakeTicks_[1] = brakeM2;
     smooth_ = smooth == "1";
+    balance_ = balance == "1";
     direction_ = directionSign;
     token_ = esp_random() | 1U;
     startMove(metres > 0 ? 0 : turns, metres, speed, goals, now);
@@ -584,14 +647,6 @@ class MotorCalibration {
     char *end = nullptr;
     const double ticks = strtod(value.c_str(), &end);
     return end && !*end && ticks >= 1 && ticks <= MaxTicksPerTurn ? ticks : 0;
-  }
-  int32_t brakeTicksArgument(const char *name) {
-    const String value = server_.arg(name);
-    if (value.isEmpty()) return -1;
-    char *end = nullptr;
-    const long long number = strtoll(value.c_str(), &end, 10);
-    if (!end || *end || number < 0 || number > INT32_MAX || value != String(long(number))) return -1;
-    return int32_t(number);
   }
   int boundedValue(const char *name, int maxValue) {
     const String value = server_.arg(name);
@@ -614,40 +669,45 @@ class MotorCalibration {
     auto counts = d["count"].to<JsonArray>();
     auto goals = d["goal"].to<JsonArray>();
     auto ticksPerTurn = d["ticksPerTurn"].to<JsonArray>();
-    auto advances = d["advance"].to<JsonArray>();
-    auto brakeTargets = d["brakeTarget"].to<JsonArray>();
     auto brakeCounts = d["brakeCount"].to<JsonArray>();
     auto offsets = d["offset"].to<JsonArray>();
     auto errors = d["error"].to<JsonArray>();
     auto errorsMm = d["errorMm"].to<JsonArray>();
     auto travelCm = d["travelCm"].to<JsonArray>();
     auto brakeTravel = d["brakeTravel"].to<JsonArray>();
-    auto nextBrake = d["nextBrake"].to<JsonArray>();
     auto brakeRpm = d["brakeRpm"].to<JsonArray>();
     auto rpm = d["rpm"].to<JsonArray>();
+    auto pwm = d["pwm"].to<JsonArray>();
+    auto kmh = d["kmh"].to<JsonArray>();
     auto peaks = d["peakRpm"].to<JsonArray>();
     auto peakKmh = d["peakKmh"].to<JsonArray>();
     auto seconds = d["secondsPerTurn"].to<JsonArray>();
     for (unsigned i = 0; i < 2; ++i) {
+      const double ticksPerTurnValue = countsPerTurn(i);
+      const double ticksPerMetre = countsPerDistanceMetre(i, ticksPerTurnValue);
+      const double rpmToKmh = ticksPerTurnValue / ticksPerMetre * 0.06;
       counts.add(count_[i]);
       if (encoderReady_[i]) rpm.add(rpm_[i]);
       else rpm.add(nullptr);
+      if (encoderReady_[i]) kmh.add(fabsf(rpm_[i]) * rpmToKmh);
+      else kmh.add(nullptr);
       if (token_ && selected(i)) {
+        const int64_t offset = phase_ == Phase::Done ? stoppedProgress_[i] : llabs(count_[i] - start_[i]);
+        pwm.add(abs(applied_[i]) * 100.0f / 1023.0f);
         peaks.add(peakRpm_[i]);
-        peakKmh.add(peakRpm_[i] * settings_[i].wheelCircumferenceMm * 0.00006);
+        peakKmh.add(peakRpm_[i] * rpmToKmh);
         goals.add(goal_[i]);
-        ticksPerTurn.add(countsPerTurn(i));
-        advances.add(brakeAdvance(i));
-        brakeTargets.add(goal_[i] - brakeAdvance(i));
-        offsets.add(phase_ == Phase::Done ? stoppedProgress_[i] : llabs(count_[i] - start_[i]));
+        ticksPerTurn.add(ticksPerTurnValue);
+        offsets.add(offset);
+        travelCm.add(offset * 100.0 / ticksPerMetre);
       } else {
         peaks.add(nullptr);
         peakKmh.add(nullptr);
         goals.add(nullptr);
         ticksPerTurn.add(nullptr);
-        advances.add(nullptr);
-        brakeTargets.add(nullptr);
+        pwm.add(nullptr);
         offsets.add(nullptr);
+        travelCm.add(nullptr);
       }
       if (phase_ == Phase::Done && selected(i)) seconds.add(secondsPerTurn_[i]);
       else seconds.add(nullptr);
@@ -661,17 +721,12 @@ class MotorCalibration {
       if (phase_ == Phase::Done && selected(i)) {
         const int64_t error = stoppedProgress_[i] - goal_[i];
         brakeTravel.add(stoppedProgress_[i] - brakeProgress_[i]);
-        nextBrake.add(constrain(brakeAdvance(i) + error, int64_t(0), min(goal_[i] - 1, int64_t(INT32_MAX))));
         errors.add(error);
-        const double ticksPerMetre = countsPerDistanceMetre(i, countsPerTurn(i));
         errorsMm.add(error * 1000.0 / ticksPerMetre);
-        travelCm.add(stoppedProgress_[i] * 100.0 / ticksPerMetre);
       } else {
         brakeTravel.add(nullptr);
-        nextBrake.add(nullptr);
         errors.add(nullptr);
         errorsMm.add(nullptr);
-        travelCm.add(nullptr);
       }
     }
     sendJson(200, d);
@@ -695,7 +750,7 @@ class MotorCalibration {
   const char *message_ = "Оберіть кількість обертів";
   bool encoderReady_[2]{}, pwmReady_[2]{}, braking_[2]{};
   bool directionWarning_[2]{}, stopRecorded_[2]{};
-  bool smooth_ = true;
+  bool smooth_ = true, balance_ = false;
   bool hasDistanceTarget_[2]{};
   int8_t distanceEncoderSign_[2]{};
   double idealDistanceTicks_[2]{}, requestedMetres_ = 0;
@@ -704,16 +759,17 @@ class MotorCalibration {
   uint8_t selected_ = 0;
   int direction_ = 1;
   int requestedTurns_ = 0;
-  int32_t runBrakeTicks_[2] = {M1BrakeAdvanceTicks, M2BrakeAdvanceTicks};
   int64_t runStartedUs_ = 0;
   uint64_t runTimeoutMs_ = 0;
   uint32_t changedAt_[2]{}, token_ = 0;
   int applied_[2]{}, maxDuty_[2]{};
-  int runApproachDuty_[2]{};
+  int runStartDuty_[2]{}, runApproachDuty_[2]{};
   double runCountsPerTurn_[2]{};
   int64_t goal_[2]{}, count_[2]{}, start_[2]{}, stoppedProgress_[2]{}, brakeProgress_[2]{};
   uint32_t sampleAt_ = 0;
+  uint32_t speedControlAt_[2]{};
   int64_t sampleCount_[2]{};
+  float speedIntegral_[2]{}, balanceRpm_[2]{}, balanceTrim_ = 0;
   float rpm_[2]{}, peakRpm_[2]{}, brakeRpm_[2]{}, secondsPerTurn_[2]{};
 };
 }
