@@ -17,7 +17,7 @@
 #endif
 
 namespace bk370 {
-constexpr uint32_t RadioMagic = 0x424b370c;
+constexpr uint32_t RadioMagic = 0x424b370d;
 #ifdef BK_HOME_WIFI
 constexpr bool HomeWifi = true;
 #else
@@ -461,11 +461,14 @@ class Firmware {
     Command c;
     const auto current = selected == 1 ? local_.status(now) : remoteState_;
     const int speed = d["speed"] | int(current.speed);
-    if (speedPreset(speed)) c.speed = speed;
+    if (speed == SpeedByPercent || speedPreset(speed)) c.speed = speed;
     const char *direction = d["direction"] | "";
     c.direction = !strcmp(direction, "right") ? 1 : !strcmp(direction, "left") ? -1 : 0;
     if (!strcmp(type, "stop")) c.op = Op::Stop;
-    else if (!strcmp(type, "speed")) c.op = Op::Speed;
+    else if (!strcmp(type, "speed")) {
+      if (speed != SpeedByPercent && !speedPreset(speed)) return;
+      c.op = Op::Speed;
+    }
     else if (!strcmp(type, "pwm_limit")) {
       const int percent = d["percent"] | 0;
       if (percent < 1 || percent > 100 || (MixedGan && selected == 2)) return;
@@ -535,21 +538,22 @@ class Firmware {
         }
       }
     }
-    const bool synchronized = c.op == Op::Survey || (linked_ && c.op != Op::LightTest && c.op != Op::PwmLimit &&
+    const bool synchronized = c.op == Op::Survey || (linked_ && c.op != Op::LightTest && !(MixedGan && c.op == Op::PwmLimit) &&
         (!SharedCable || (c.op != Op::Jog && c.op != Op::Zero && c.op != Op::MotorStop && c.op != Op::ClearReference)));
     const bool local = selected == 1 || synchronized;
     const bool remote = selected == 2 || synchronized;
-    if (remote && pending_.op == Op::PwmLimit &&
-        c.op != Op::Stop && c.op != Op::MotorStop && c.op != Op::PwmLimit) {
-      notifyClient("Дочекайтеся підтвердження ліміту приводу від другої каретки.");
+    const bool speedSetting = c.op == Op::Speed || c.op == Op::PwmLimit;
+    if (remote && (pending_.op == Op::Speed || pending_.op == Op::PwmLimit) &&
+        c.op != Op::Stop && c.op != Op::MotorStop && !speedSetting) {
+      notifyClient("Дочекайтеся підтвердження налаштування швидкості від другої каретки.");
       return;
     }
     if (remote && !online && c.op != Op::Stop) {
       notifyClient("Р”СЂСѓРіР° РєР°СЂРµС‚РєР° РѕС„Р»Р°Р№РЅ");
       return;
     }
-    const bool stopsMotors = c.op == Op::Stop || c.op == Op::MotorStop || (c.op == Op::Speed && !c.speed);
-    if (synchronized && !stopsMotors && c.op != Op::Reset && c.op != Op::Zero && c.op != Op::Servo &&
+    const bool stopsMotors = c.op == Op::Stop || c.op == Op::MotorStop;
+    if (synchronized && !stopsMotors && !speedSetting && c.op != Op::Reset && c.op != Op::Zero && c.op != Op::Servo &&
         (!local_.status(now).ready || !remoteState_.ready)) {
       notifyClient("Р СѓС… Р·Р°Р±Р»РѕРєРѕРІР°РЅРѕ РЅР° РѕРґРЅС–Р№ С–Р· РєР°СЂРµС‚РѕРє");
       return;

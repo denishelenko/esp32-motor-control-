@@ -72,7 +72,8 @@ constexpr uint32_t ParkIdleDelayMs = 5 * 60 * 1000;
 constexpr float ParkToleranceM = 0.005f;
 constexpr uint8_t ParkCorrectionLimit = 3;
 constexpr float DefaultSpeedKmh = 5.0f;
-constexpr bool speedPreset(int kmh) { return kmh == 5 || kmh == 10 || kmh == 15; }
+constexpr uint8_t SpeedByPercent = 0;
+constexpr bool speedPreset(int kmh) { return kmh == 5 || kmh == 10 || kmh == 15 || kmh == 20; }
 constexpr float DutyRisePerSec = 0.50f;
 // Initial estimate of the duty needed to overcome drivetrain friction.
 constexpr uint8_t CalibratedStartPwmPercent[2] = {8, 8};

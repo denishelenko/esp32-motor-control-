@@ -32,7 +32,7 @@ class MotorGroup {
  public:
   int64_t count[2]{};
   float countsPerSecond[2]{};
-  uint8_t speed = uint8_t(DefaultSpeedKmh), program = 1, maxPwm = DefaultMaxPwmPercent;
+  uint8_t speed = SpeedByPercent, program = 1, maxPwm = DefaultMaxPwmPercent;
   Mode mode = Mode::Idle;
   float position = 0, target = 0;
   int16_t applied[2]{};
@@ -103,8 +103,10 @@ class MotorGroup {
   }
   bool setPwmLimit(uint8_t percent) {
     if (!percent || percent > 100) return false;
-    if (maxPwm != percent) log("PWM", "drive limit %u -> %u%%", maxPwm, percent);
+    if (maxPwm != percent || speed != SpeedByPercent)
+      log("MOTOR", "speed mode PWM: %u -> %u%%", maxPwm, percent);
     maxPwm = percent;
+    speed = SpeedByPercent;
     return true;
   }
   float wheelMps(unsigned i) const { return countsPerSecond[i] * metersPerCount_[i]; }
@@ -148,8 +150,9 @@ class MotorGroup {
     return true;
   }
   void setSpeed(uint8_t kmh) {
-    if (!speedPreset(kmh) || speed == kmh) return;
-    log("MOTOR", "speed limit=%u -> %u km/h", speed, kmh);
+    if ((kmh != SpeedByPercent && !speedPreset(kmh)) || speed == kmh) return;
+    if (kmh == SpeedByPercent) log("MOTOR", "speed mode PWM: %u%%", maxPwm);
+    else log("MOTOR", "speed limit: %u km/h", kmh);
     speed = kmh;
   }
   bool moveFor(Direction direction, uint32_t ms, uint32_t now) {
@@ -305,7 +308,9 @@ class MotorGroup {
       scale = min(scale, min(rampUp, rampDown));
     }
     const bool slowMode = mode == Mode::Survey || mode == Mode::Park || (side_ && mode == Mode::Jog);
-    float limitMps = min(slowMode ? SharedSurveyMps : speed / 3.6f, maxSpeedMps());
+    float limitMps = maxSpeedMps();
+    if (slowMode) limitMps = min(limitMps, SharedSurveyMps);
+    else if (speed != SpeedByPercent) limitMps = min(limitMps, speed / 3.6f);
     const bool nearBoundary = side_ && centered && boundaryLeft <= SlowZoneM;
     const float boundarySpeed = max(FinalCreepMps, sqrtf(2 * SharedBoundaryDecelMps2 * max(0.0f, boundaryLeft)));
     if (side_ && centered) limitMps = min(limitMps, boundarySpeed);
@@ -367,7 +372,8 @@ class MotorGroup {
   }
  private:
   float pwmCeiling(unsigned i) const {
-    return min(constrain(settings_[i].dutyMultiplier, 0.0f, 1.0f), drivePwmFraction(maxPwm));
+    const float requestedCeiling = speed == SpeedByPercent ? maxPwm / 100.0f : 1.0f;
+    return min(constrain(settings_[i].dutyMultiplier, 0.0f, 1.0f), requestedCeiling);
   }
   static float smoothRamp(float fraction) {
     const float t = constrain(fraction, 0.0f, 1.0f);
@@ -442,8 +448,7 @@ class MotorGroup {
     log("FAULT", "motor=%u %s", motor, motorFaultMessage(reason));
   }
   bool start(Mode modeWanted, Direction direction, uint32_t now, uint32_t duration = 0) {
-    if (!ready() || !permitted_ || !speed ||
-        !speedCalibrated()) return false;
+    if (!ready() || !permitted_ || !speedCalibrated()) return false;
     if (mode != Mode::Idle && !waiting_) stop(now, "replaced");
     stopPending_ = false;
     mode = modeWanted;
@@ -537,7 +542,7 @@ struct Status {
   uint32_t remainingMs = 0;
   Mode mode = Mode::Idle;
   LightTest lightTest = LightTest::Off;
-  uint8_t speed = uint8_t(DefaultSpeedKmh), program = 1, servoTarget = 0, servoSelected = 45;
+  uint8_t speed = SpeedByPercent, program = 1, servoTarget = 0, servoSelected = 45;
   MotorFault fault = MotorFault::None;
   uint8_t faultMotor = 0, maxPwm = DefaultMaxPwmPercent;
   bool ready = false, powered = false, locked = false, centered = false, calibrated = false, servo = false, surveyed = false, atOuterMark = false, parked = false;

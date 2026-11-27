@@ -29,12 +29,12 @@ canvas{display:block;width:100%;height:clamp(145px,24vh,230px)}
 <main><header><h1>Журнал BK370</h1><a href="/">Керування</a></header>
 <p id="state" role="status">Очікування даних ESP32…</p>
 <section id="power" class="power" hidden>
- <header><h2>INA226</h2>
+ <header><h2>INA226 · живлення каретки</h2>
   <select id="carriage" aria-label="Каретка"><option value="0">BK1</option><option value="1">BK2</option></select>
  </header>
  <div class="charts">
   <section class="chart chart-current">
-   <h3>Струм</h3><p id="values">Очікування вимірів…</p>
+   <h3>Сумарний струм каретки</h3><p id="values">Очікування вимірів…</p>
    <p id="quality" hidden>Датчик досяг межі вимірювання. Справжній пік може бути вищим.</p>
    <canvas id="currentPlot" role="img" aria-label="Графік струму"></canvas>
    <p>Середній струм — бірюзова лінія. Пік інтервалу — помаранчева.</p>
@@ -69,7 +69,7 @@ function drawPower(){
    "Середній струм "+amps(last[2])+" · Пік інтервалу "+amps(last[3])+" · Пусковий пік (500 мс) "+amps(last[5]):
    "Очікування вимірів…";
  byId("quality").hidden=!last||!(last[6]&10);
- byId("voltageTitle").textContent=batteryFeed?"Напруга батареї":"Напруга на вході драйвера";
+ byId("voltageTitle").textContent=batteryFeed?"Напруга батареї":"Напруга шини живлення";
  byId("voltageValue").textContent=isNumber(last?.[4])?last[4].toFixed(2)+" В":"—";
  byId("chargeValue").textContent=isNumber(last?.[7])?"≈ "+last[7].toFixed(0)+"% за напругою":
    last&&!batteryFeed?"Недоступно без вимірювання напруги батареї":"—";
@@ -118,6 +118,7 @@ function updatePower(data){
  power.hidden=!sources;
  document.body.classList.toggle("withPower",Boolean(sources));
  if(!sources)return;
+ carriage.hidden=sources===1||sources===2;
  const current=Number(carriage.value);
  for(let id=0;id<2;id++)carriage.options[id].disabled=!(sources&(1<<id));
  if(!(sources&(1<<current)))carriage.value=sources&1?"0":"1";
