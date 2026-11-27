@@ -91,7 +91,7 @@ class MotorGroup {
       encodersReady &= encoderReady;
     }
     hardwareReady_ = encodersReady && ready;
-    log("MOTOR", "output=%d encoders=%d commissioned=%d", ready, encodersReady, DriveCommissioned);
+    log("MOTOR", "output=%d encoders=%d", ready, encodersReady);
   }
   bool calibrated() const {
     return countsPerMeter_[0] > 0 && countsPerMeter_[1] > 0;
@@ -108,7 +108,7 @@ class MotorGroup {
     return true;
   }
   float wheelMps(unsigned i) const { return countsPerSecond[i] * metersPerCount_[i]; }
-  bool ready() const { return DriveCommissioned && hardwareReady_ && encodersReady && !faulted(); }
+  bool ready() const { return hardwareReady_ && encodersReady && !faulted(); }
   bool surveyed() const { return surveyed_; }
   bool clearReference(uint32_t now) {
     if (!side_ || mode != Mode::Idle || now - lastEncoderChange_ < 350) return false;

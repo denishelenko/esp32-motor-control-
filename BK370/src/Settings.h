@@ -34,9 +34,6 @@ constexpr const MotorSettings (&motorSettingsFor(bool carriage2))[2] {
 }
 constexpr double NominalCountsPerWheel = 11.0 * 9.3 * 4.0;
 constexpr float NominalWheelRpm = 1452.0f;
-// Enable only after checking the power supply and hardware current limiting.
-// Position commands additionally require calibration and a fresh center.
-constexpr bool DriveCommissioned = false;
 constexpr uint8_t ServoPin = 21, StrobePin = 16, GreenPin = 17, RedPin = 18;
 constexpr uint16_t ServoTravel90Ms = 350;
 constexpr uint8_t SdaPin = 8, SclPin = 9, InaAddress = 0x40;
